@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { plainText, replaceRange, type EditorDocument } from "../editor-document";
 import { samplePrompt, sampleResponse } from "../demo-ai";
+import { canonicalJson, GENESIS_HASH, HASH_FORMAT_VERSION, hashContent, hashEvidenceEvent, normalizeProofEvent, type EvidenceData, type EvidenceEvent, type ProofEvent } from "../proof-format";
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
@@ -35,9 +36,13 @@ function db(): DatabaseSync {
       ai_response_id TEXT, inserted_text TEXT, insert_position_json TEXT,
       replaced_length INTEGER, content_after_json TEXT NOT NULL, request_hash TEXT NOT NULL,
       previous_hash TEXT NOT NULL, event_hash TEXT NOT NULL,
+      hash_format_version INTEGER NOT NULL DEFAULT 0, event_payload_json TEXT,
       UNIQUE(document_id, operation_id), UNIQUE(document_id, version)
     );
   `);
+  const columns = new Set((connection.prepare("PRAGMA table_info(events)").all() as { name: string }[]).map((column) => column.name));
+  if (!columns.has("hash_format_version")) connection.exec("ALTER TABLE events ADD COLUMN hash_format_version INTEGER NOT NULL DEFAULT 0");
+  if (!columns.has("event_payload_json")) connection.exec("ALTER TABLE events ADD COLUMN event_payload_json TEXT");
   database = connection;
   return connection;
 }
@@ -135,7 +140,57 @@ export function listEvents(id: string) {
     insertPosition: row.insert_position_json ? JSON.parse(row.insert_position_json as string) : null,
     replacedLength: row.replaced_length, contentAfter: JSON.parse(row.content_after_json as string),
     previousHash: row.previous_hash, eventHash: row.event_hash,
+    hashFormatVersion: row.hash_format_version,
+    event: row.event_payload_json ? JSON.parse(row.event_payload_json as string) : null,
   }));
+}
+
+// Call inside the same transaction that will freeze and sign this document.
+// Legacy event rows lack the original optional-field shape and cannot be certified as v1.
+export function readSignableEvidence(connection: DatabaseSync, id: string): EvidenceData {
+  if (!uuid.test(id)) throw new ApiError(400, "INVALID_ID", "Invalid document ID");
+  const document = connection.prepare("SELECT version, content_json FROM documents WHERE id = ?").get(id) as Row | undefined;
+  if (!document) throw new ApiError(404, "NOT_FOUND", "Document not found");
+  const rows = connection.prepare("SELECT * FROM events WHERE document_id = ? ORDER BY version ASC").all(id) as Row[];
+  const contentJson = JSON.parse(document.content_json as string) as EditorDocument;
+  if (rows.length !== document.version) throw new ApiError(409, "INCOMPLETE_HISTORY", "Event count does not match document version");
+  const events: EvidenceEvent[] = [];
+  let previousHash = GENESIS_HASH;
+  for (const row of rows) {
+    if (row.hash_format_version !== HASH_FORMAT_VERSION || typeof row.event_payload_json !== "string") {
+      throw new ApiError(409, "LEGACY_EVENT_FORMAT", "Document contains events without a reproducible v1 payload");
+    }
+    if (row.version !== events.length + 1 || row.previous_hash !== previousHash) {
+      throw new ApiError(409, "BROKEN_EVENT_CHAIN", "Event versions or previous hashes are inconsistent");
+    }
+    const event: EvidenceEvent = {
+      eventId: row.id as string,
+      documentId: id,
+      version: row.version as number,
+      event: JSON.parse(row.event_payload_json) as ProofEvent,
+      receivedAt: row.received_at as string,
+      contentAfter: JSON.parse(row.content_after_json as string) as EditorDocument,
+      previousHash,
+      eventHash: row.event_hash as string,
+    };
+    if (hashEvidenceEvent(event) !== event.eventHash) {
+      throw new ApiError(409, "BROKEN_EVENT_CHAIN", "Stored event hash does not match its payload");
+    }
+    events.push(event);
+    previousHash = event.eventHash;
+  }
+  if (events.length && canonicalJson(events.at(-1)!.contentAfter) !== canonicalJson(contentJson)) {
+    throw new ApiError(409, "CONTENT_MISMATCH", "Final document differs from its last event");
+  }
+  return {
+    documentId: id,
+    finalVersion: document.version as number,
+    contentJson,
+    eventCount: events.length,
+    eventHeadHash: previousHash,
+    contentHash: hashContent(contentJson),
+    events,
+  };
 }
 
 export function saveEvent(id: string, input: unknown) {
@@ -185,10 +240,11 @@ export function saveEvent(id: string, input: unknown) {
     const eventId = randomUUID();
     const receivedAt = new Date().toISOString();
     const last = connection.prepare("SELECT event_hash FROM events WHERE document_id = ? ORDER BY version DESC LIMIT 1").get(id) as Row | undefined;
-    const previousHash = last?.event_hash as string ?? "0".repeat(64);
-    const eventHash = sha256(canonical({ previousHash, documentId: id, version, eventId, event, receivedAt, contentJson: body.contentJson }));
-    connection.prepare(`INSERT INTO events (id,document_id,operation_id,version,type,client_timestamp,received_at,snippet,ai_response_id,inserted_text,insert_position_json,replaced_length,content_after_json,request_hash,previous_hash,event_hash)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(eventId, id, event.operationId, version, event.type, event.timestamp ?? null, receivedAt, event.snippet ?? "", event.aiResponseId ?? null, event.insertedText ?? null, event.insertPosition ? JSON.stringify(event.insertPosition) : null, event.replacedLength ?? null, JSON.stringify(body.contentJson), requestHash, previousHash, eventHash);
+    const previousHash = last?.event_hash as string ?? GENESIS_HASH;
+    const proofEvent = normalizeProofEvent(event);
+    const eventHash = hashEvidenceEvent({ eventId, documentId: id, version, event: proofEvent, receivedAt, contentAfter: body.contentJson as EditorDocument, previousHash });
+    connection.prepare(`INSERT INTO events (id,document_id,operation_id,version,type,client_timestamp,received_at,snippet,ai_response_id,inserted_text,insert_position_json,replaced_length,content_after_json,request_hash,previous_hash,event_hash,hash_format_version,event_payload_json)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(eventId, id, event.operationId, version, event.type, event.timestamp ?? null, receivedAt, event.snippet ?? "", event.aiResponseId ?? null, event.insertedText ?? null, event.insertPosition ? JSON.stringify(event.insertPosition) : null, event.replacedLength ?? null, JSON.stringify(body.contentJson), requestHash, previousHash, eventHash, HASH_FORMAT_VERSION, canonicalJson(proofEvent));
     connection.prepare("UPDATE documents SET content_json = ?, version = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(body.contentJson), version, receivedAt, id);
     connection.exec("COMMIT");
     return { documentId: id, eventId, operationId: event.operationId, version, saved: true, replayed: false };

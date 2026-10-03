@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { emptyDocument, replaceRange } from "../lib/editor-document.ts";
+import { hashEvidenceEvent } from "../lib/proof-format.ts";
 
 const base = process.env.PROOFFLOW_TEST_URL ?? "http://localhost:3001";
 
@@ -96,6 +97,19 @@ test("documents and events persist with idempotency, versioning and source check
   assert.equal(history.body.events[0].previousHash, "0".repeat(64));
   assert.equal(history.body.events[1].previousHash, history.body.events[0].eventHash);
   assert.equal(history.body.events[2].previousHash, history.body.events[1].eventHash);
+  for (const saved of history.body.events) {
+    assert.equal(saved.hashFormatVersion, 1);
+    assert.equal(saved.event.timestamp, null);
+    assert.equal(hashEvidenceEvent({
+      eventId: saved.id,
+      documentId: id,
+      version: saved.version,
+      event: saved.event,
+      receivedAt: saved.receivedAt,
+      contentAfter: saved.contentAfter,
+      previousHash: saved.previousHash,
+    }), saved.eventHash);
+  }
 
   const competing = await Promise.all(["A", "B"].map((letter) => request(`/api/documents/${id}/events`, "POST", {
     documentId: id, baseVersion: 3,

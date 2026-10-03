@@ -1,6 +1,6 @@
 # ProofFlow editor and backend contract (draft)
 
-Status (2026-10-03): a local Next.js + SQLite demo now implements the custom JSON editor, `documents`/`events` API, FIFO event saving, optimistic versions, idempotency, insertion validation, and a SHA-256 event chain. It is not authenticated or deployable as a trustworthy production service. Finalize, digital signatures, certificates, and verification remain unimplemented. Authentication and deployment ownership still need agreement with member 1.
+Status (2026-10-03): a local Next.js + SQLite demo implements the custom JSON editor, `documents`/`events` API, FIFO event saving, optimistic versions, idempotency, insertion validation, and a SHA-256 event chain. New events use the reproducible v1 evidence format below. Certificate and evidence types plus signing bytes are defined, but Finalize, signature issuance, export, and Verify APIs are not implemented. The service is unauthenticated and must stay local until access control is added.
 
 This contract describes the first vertical slice: create a document, save one edit, read it back, and show the saved event. The editor is a custom React editor; the JSON shape below is a ProofFlow format, not a Tiptap or Slate format.
 
@@ -72,7 +72,7 @@ Response (`200`): document `id`, `title`, `editorSchemaVersion`, current `conten
 
 A valid independent manual request is in `docs/examples/save-manual-edit.request.json`; the agreed target paste shape is in `docs/examples/save-paste.target.request.json`. The route carries `documentId` in the URL and the body repeats it; the server rejects a mismatch. `baseVersion` is a top-level request field, outside `contentJson`. The body also carries `event.operationId`, `event.type`, optional `event.timestamp`, optional `event.aiResponseId`, optional `event.snippet`, `PASTE` fields `event.insertedText` and `event.insertPosition`, and the complete `contentJson` after the operation. If `editorSchemaVersion` is supplied, it must match the document's stored schema version; otherwise the server uses the stored value.
 
-Member 2's earlier paste example has `baseVersion: 3`, so a successful first save would return version `4`. Its `op_1727938200000` value was illustrative and is not the current page's generated format. The current page uses `Date.now().toString()` for operation IDs; member 2 agreed to replace that with a UUID. Treat operation IDs as opaque and do not derive event time from them.
+Member 2's earlier paste example has `baseVersion: 3`, so a successful first save would return version `4`. Its `op_1727938200000` value was illustrative and is not the current page's generated format. The current page uses `crypto.randomUUID()` for operation IDs. Treat operation IDs as opaque and do not derive event time from them.
 
 Response (`201`):
 
@@ -98,6 +98,55 @@ Expected errors: `400` malformed request; `401` unauthenticated; `403` unauthori
 
 The current frontend queues edits FIFO per document, reuses `operationId` on retry, and uses each save acknowledgment's version as the next `baseVersion`. It does not debounce manual input yet. The certificate button is disabled because Finalize is not implemented. Future Finalize must wait for all pending saves, check the expected server version, and freeze a consistent document/event range.
 
+## Evidence and certificate format v1
+
+This is the format for **newly saved events**. `hashFormatVersion` is `1`. Existing database rows are marked version `0` after migration because their raw optional `event` fields were not retained. They must not be issued a v1 certificate. For the local demo, use a newly created document; migrating old rows requires a separately specified legacy verifier or a deliberate reset, not an assumed rehash.
+
+The exported package will have this shape:
+
+```json
+{
+  "formatVersion": 1,
+  "certificate": {
+    "certificateId": "UUID",
+    "documentId": "UUID",
+    "finalVersion": 1,
+    "finalizedAt": "2026-10-03T00:00:01.000Z",
+    "contentHash": "64 lowercase hex characters",
+    "eventCount": 1,
+    "eventHeadHash": "64 lowercase hex characters",
+    "hashFormatVersion": 1,
+    "keyId": "ed25519-sha256:<64 lowercase hex characters>",
+    "signature": "base64url without padding"
+  },
+  "contentJson": { "type": "doc", "content": [{ "type": "paragraph", "content": [] }] },
+  "events": []
+}
+```
+
+The example values illustrate field types, not a valid package. A real package contains every event from version `1` through `finalVersion` in order. Each event has exactly `eventId`, `documentId`, `version`, `event`, `receivedAt`, `contentAfter`, `previousHash`, and `eventHash`. The nested `event` has exactly `operationId`, `type`, `timestamp`, `snippet`, `aiResponseId`, `insertedText`, `insertPosition`, and `replacedLength`. Missing optional input fields become explicit `null`; `insertPosition` is `null` or `{ "path": [0], "offset": 0 }`. The signer stores this complete normalized nested object in `events.event_payload_json`, so it never needs to infer omission from split SQLite columns. For an empty version-0 document, `events` is empty, `eventCount` is `0`, and `eventHeadHash` is 64 zeroes.
+
+Canonical JSON accepts only JSON values: `null`, boolean, finite number, string, array, and plain object. It sorts object keys recursively by JavaScript UTF-16 code-unit order; arrays retain order; strings and finite numbers use `JSON.stringify` spelling. There is no whitespace between tokens. `undefined`, non-finite numbers, and non-JSON objects are rejected. Every hash below uses UTF-8 bytes of the given prefix plus canonical JSON, and SHA-256 produces lowercase hex:
+
+```text
+contentHash = SHA256_UTF8("ProofFlow content v1\n" + canonical(contentJson))
+eventHash   = SHA256_UTF8("ProofFlow event v1\n" + canonical({
+  previousHash, documentId, version, eventId, event, receivedAt,
+  contentJson: contentAfter
+}))
+```
+
+The first event's `previousHash` is 64 zeroes. Later events use the previous `eventHash`. Certificate signing bytes are UTF-8 of `"ProofFlow certificate v1\n" + canonical(certificate fields except signature)`. All nine unsigned fields shown above are covered. Use Ed25519 one-shot signing over those bytes; encode the result as unpadded base64url. `keyId` is `ed25519-sha256:` plus lowercase SHA-256 hex of the public key's DER SPKI bytes. The private key stays in server environment configuration. The verifier needs a public key or its fingerprint from a trusted channel independent of the uploaded evidence package.
+
+Golden v1 example: a one-event `MANUAL_EDIT` of `中文 😀`, with document ID `11111111-1111-4111-8111-111111111111`, event ID `22222222-2222-4222-8222-222222222222`, operation ID `33333333-3333-4333-8333-333333333333`, `receivedAt` `2026-10-03T00:00:00.000Z`, `snippet` `中文 😀`, all other optional event fields `null`, and `contentAfter` equal to a `doc` with one paragraph and one text node containing `中文 😀`, yields:
+
+```text
+contentHash = ea47080ed6c8845e3e80208c5d6c59882ec64b05555e48914957a77c1ecee0b2
+eventHash   = 353adb19ad090c6e79bfad433478f6a03de0fb3e4290702ca2391ceef9fc3be2
+```
+
+The signer-side implementation is in `frontend/lib/proof-format.ts`; `readSignableEvidence(connection, id)` in `frontend/lib/server/provenance.ts` assembles the complete v1 data and rejects gaps, broken hashes, legacy rows, or a final document that differs from the last event. Finalize must call it inside its freeze transaction. The current `request_hash` is for save idempotency; it is not part of this evidence digest. An `AI_INSERT` event binds its inserted text and response ID, but this v1 package alone does not independently prove that a model generated that response. Browser action labels likewise do not prove human authorship or provide a trusted timestamp.
+
 ## Integration acceptance check
 
 1. Create a document and receive version `0`.
@@ -112,7 +161,7 @@ The current frontend queues edits FIFO per document, reuses `operationId` on ret
 
 - Member 2: replace the plain textarea + separate source preview with true inline rich-text editing if that remains the intended UX; agree how to batch manual events and handle multi-tab `409` conflicts. The local demo already exports JSON, uses UUID operation IDs, records paste coordinates/source markers, and saves FIFO.
 - Member 1: choose authentication and ownership rules, shared database/deployment target, and migration ownership. The current SQLite routes are local-only and unauthenticated.
-- Member 4: replace the canned server-recorded AI response with actual model response storage; define signing keys, Finalize, certificate format, and independent verification.
+- Member 4: replace the canned server-recorded AI response with actual model response storage; review the v1 format above, define the trusted public-key distribution path, and implement independent verification with the Finalize owner.
 - Members 2 and 3: agree on production JSON size limits, title persistence, save-failure UX, and the exact save-drain rule before Finalize.
 
 The local demo backend tables and routes are implemented in `frontend/lib/server/provenance.ts` and `frontend/app/api/documents/`. Integration with a shared authenticated database, member 4's real AI response storage, signed certificates, and independent verification is still needed. The current AI response is a server-recorded canned sample, not a real model call.

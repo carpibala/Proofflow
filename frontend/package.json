@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test tests/editor-document.test.mjs",
+    "test": "node --experimental-strip-types --test tests/editor-document.test.mjs tests/proof-format.test.mjs",
     "test:integration": "node --experimental-strip-types --test tests/api.integration.test.mjs",
     "test:ui": "node --test tests/ui.smoke.test.mjs"
   },
