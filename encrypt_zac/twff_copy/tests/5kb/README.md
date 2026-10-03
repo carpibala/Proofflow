@@ -8,7 +8,7 @@
 | 项目 | 值 |
 |---|---|
 | 被监视文件 | `textfile.txt`，4863 字节 / 1631 字符 / 12 行（4.75 KB，中文） |
-| 编辑器 | `chainlog.py`（本目录一份副本，与上级目录同源） |
+| 编辑器 | `chainlog.py`（本目录一份副本，与项目根目录同源并带哈希校验） |
 | 轮询间隔 | `--interval 0.4` |
 | 预览宽度 | `--preview-chars 300`（另有 60 / 0 两档对照） |
 
@@ -39,9 +39,12 @@ python run_5kb_test.py 0
 python compare_preview.py
 ```
 
-> `run_5kb_test.py` 启动前会清掉 `audit.json.lock`。**这一步不能省**：
-> 上一次测试若被强杀，会留下心跳已停的锁，它在 90 秒内仍会被判为"有人在用"，
-> 导致新 watch 被自己的守卫拒绝（我第一轮就是这么失败的）。
+> `run_5kb_test.py` 启动前会做两件事：
+> 1. **校验副本一致性**——本目录的 `chainlog.py` / `test_diff.py` 必须与项目根目录的
+>    正式版本哈希相同，否则直接失败（exit 2）并给出同步命令。本目录刻意保留副本以便
+>    离线复现，这个校验防止"测的是旧代码"。
+> 2. **清掉 `audit.json.lock`**——上一次测试若被强杀，会留下心跳已停的锁，
+>    它在 90 秒内仍会被判为"有人在用"，导致新 watch 被自己的守卫拒绝。
 
 ## 结果文件
 
@@ -49,13 +52,15 @@ python compare_preview.py
 |---|---|
 | `result-preview{300,60,0}.txt` | 每次运行的完整控制台输出（延迟表 + verify 结果） |
 | `watch-output-preview{300,60,0}.txt` | watch 子进程的原始输出（实时性证据） |
-| `audit-preview{300,60,0}.json` | 三档对应的审计日志快照 |
+| `audit-preview{300,60,0}.json` | 三档对应的审计日志快照（**唯一的日志证据**） |
 | `summary.txt` | 逐条 diff 详情 + 体积拆解（`inspect_result.py` 生成） |
 | `comparison.txt` | 三档 preview 的体积对照（`compare_preview.py` 生成） |
-| `test_diff.py` | diff 单元测试副本（同一个文件也放在上级目录） |
-| `chainlog.py` | 被测程序副本，使本目录自包含、可离线复现 |
-| `anchor.json` | 链外锚点（最后一次运行的） |
-| `audit.json` / `textfile.txt` | 最后一次运行（preview=0）的日志与文档最终状态 |
+| `chainlog.py` / `test_diff.py` | 被测程序与单测的副本，带哈希校验防过期 |
+| `textfile.txt` | 测试文档的最终状态 |
+
+> 工作文件（`audit.json` / `result.txt` / `anchor.json` / 锁）在每次运行结束、
+> **归档完毕后会自动删除**，避免与 `*-preview*.json|txt` 快照重复堆积。
+> 所以要看本次运行的原始日志，请读对应的 `audit-preview{N}.json`。
 
 三档快照都已各自验证通过：
 
@@ -72,7 +77,7 @@ preview=0   : ✅ 完整  9 条事件，链未被篡改
 说明 diff 能精确定位到文档深处。
 
 **实时性**：平均「文件写入 → 事件落盘」延迟 **0.24 s**，最大 0.41 s。
-关键证据是 `watch-output-300.txt` 在 **watch 进程仍在运行时**
+关键证据是 `watch-output-preview300.txt` 在 **watch 进程仍在运行时**
 就已包含全部 6 条 `content_modified` —— 这排除了"退出时才批量刷盘"。
 
 **体积**：

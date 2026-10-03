@@ -20,11 +20,38 @@ import sys
 import time
 
 HERE = pathlib.Path(__file__).parent
+ROOT = HERE.parent.parent                     # 项目根目录（twff_copy/）
 TARGET = HERE / "textfile.txt"
 LOG = HERE / "audit.json"
 ANCHOR = HERE / "anchor.json"
-WATCH_OUT = HERE / "watch-output.txt"
 RESULT = HERE / "result.txt"
+
+
+def check_synced() -> None:
+    """
+    确认本目录的 chainlog.py / test_diff.py 副本与根目录正式版本一致。
+
+    本目录刻意保留副本，使测试可离线复现；代价是副本可能过期，
+    导致"测的是旧代码"。这里用哈希硬校验，把这个问题变成响亮的失败。
+    """
+    import hashlib
+
+    def short(p: pathlib.Path) -> str:
+        return hashlib.sha256(p.read_bytes()).hexdigest()[:12]
+
+    stale = []
+    for name in ("chainlog.py", "test_diff.py"):
+        local, canonical = HERE / name, ROOT / name
+        if not canonical.exists() or not local.exists() or short(local) != short(canonical):
+            stale.append(name)
+    if stale:
+        print("=" * 74)
+        print(f"!! 副本已过期：{', '.join(stale)}")
+        print("   本目录副本与项目根目录的正式版本不一致，测出来的结论不可信。先同步：")
+        for name in stale:
+            print(f'     copy "{ROOT}\\{name}" "{HERE}\\{name}"')
+        print("=" * 74)
+        raise SystemExit(2)
 
 SECTION = (
     "第{n}节。生成式人工智能正在改变知识生产的方式，写作、编程与设计领域都出现了"
@@ -68,6 +95,7 @@ def count_events() -> int:
 
 
 def main() -> int:
+    check_synced()
     py = sys.executable
     lines: list[str] = []
     # --preview-chars 会显著影响日志体积（实测占 70%+），所以从命令行传入，
@@ -81,7 +109,8 @@ def main() -> int:
     # ── 准备
     # 必须一并清掉锁文件：上一次测试若被强杀，会留下心跳已停的锁，
     # 而它在 LOCK_STALE_SECONDS(90s) 之内仍会被判为"有人在用"，导致新 watch 被拒。
-    for p in (LOG, ANCHOR, WATCH_OUT, HERE / "audit.json.lock"):
+    lock = HERE / "audit.json.lock"
+    for p in (LOG, ANCHOR, lock):
         p.unlink(missing_ok=True)
     base = build_document(9)
     write(TARGET, base)
@@ -157,7 +186,7 @@ def main() -> int:
         want = count_events() + 1
         t0 = time.time()
         write(TARGET, text)
-        ok = wait_for_events(WATCH_OUT, want)
+        ok = wait_for_events(LOG, want)
         dt = time.time() - t0
         latencies.append(dt)
         events = count_events()
@@ -212,10 +241,20 @@ def main() -> int:
 
     # ── 归档快照：按 preview 参数区分，便于做体积对照
     import shutil
-    shutil.copyfile(RESULT, HERE / f"result-preview{preview_chars}.txt")
-    shutil.copyfile(LOG, HERE / f"audit-preview{preview_chars}.json")
-    print(f"已归档 result-preview{preview_chars}.txt / "
-          f"audit-preview{preview_chars}.json")
+    archive_result = HERE / f"result-preview{preview_chars}.txt"
+    archive_log = HERE / f"audit-preview{preview_chars}.json"
+    shutil.copyfile(RESULT, archive_result)
+    shutil.copyfile(LOG, archive_log)
+    print(f"已归档 {archive_result.name} / {archive_log.name}")
+
+    # ── 清掉本轮的工作文件，避免与归档快照重复堆积
+    #    （它们每次运行都会重新生成；证据已由上面两个归档文件保留）
+    for temp in (LOG, RESULT, ANCHOR, lock):
+        try:
+            temp.unlink()
+        except OSError:
+            pass
+    print("已清理本轮工作文件（audit.json / result.txt / anchor.json / 锁）")
     return 0
 
 

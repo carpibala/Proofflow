@@ -1,0 +1,17 @@
+# Python 字节码
+__pycache__/
+*.py[cod]
+
+# 运行产物（会随使用增长，不入库）
+audit.json
+anchor.json
+*.lock
+
+# 测试运行时的工作文件
+# 注意：tests/5kb/ 下的「结果快照」是有意保留的证据，不在这里忽略：
+#   audit-preview*.json / result-preview*.txt / watch-output-preview*.txt / summary.txt / comparison.txt
+tests/5kb/audit.json
+tests/5kb/result.txt
+tests/5kb/anchor.json
+tests/5kb/*.lock
+tests/5kb/watch-output.txt

@@ -23,8 +23,35 @@
 > 若都不在，重新克隆：
 > `git clone https://github.com/Functional-Intelligence-Research-Lab/twff`
 
-> 🆕 **接手这个功能？先读 [`交接总结.md`](交接总结.md)** —— 里面有全部踩坑记录、
+> 🆕 **接手这个功能？先读 [`docs/交接总结.md`](docs/交接总结.md)** —— 里面有全部踩坑记录、
 > 设计取舍、验证方法和下一步建议。本文件是功能说明与实测数据。
+
+---
+
+## 项目结构
+
+```text
+twff_copy/
+├── chainlog.py            ★ 核心：init / watch / announce / verify / show
+├── test_diff.py             diff 单元测试（29 项）
+├── README.md               本文件
+├── textfile.txt            被监视的文件（示例）
+├── audit.json              审计日志（含哈希链）—— 运行产物，会增长
+├── anchor.json             链外锚点（head_hash）—— 运行产物
+├── 待办.md                  使用者的需求笔记
+├── docs/
+│   ├── 交接总结.md          ★ 接手必读：踩坑、取舍、验证、下一步
+│   └── 操作流程.md          零变量、可复制粘贴的傻瓜流程
+├── examples/
+│   ├── tamper_demo.py      篡改检测演示（5 种手法）
+│   └── rechain_demo.py     "重算链"演示 + 锚点必要性
+└── tests/
+    └── 5kb/                5KB 端到端实测：脚本 + 原始输出 + 汇总
+```
+
+**只有 `chainlog.py` 是需要维护的源文件。** `audit.json` / `anchor.json` 是运行产物；
+`tests/5kb/` 里的 `chainlog.py` 与 `test_diff.py` 副本是为了让测试自包含可复现，
+并加了哈希校验防止副本过期（见 [`tests/5kb/README.md`](tests/5kb/README.md)）。
 
 ---
 
@@ -54,7 +81,7 @@ python chainlog.py verify --log audit.json --file textfile.txt
 python chainlog.py show --log audit.json
 ```
 
-需要更手把手的版本（含每个窗口该做什么）见 [`操作流程.md`](操作流程.md)。
+需要更手把手的版本（含每个窗口该做什么）见 [`docs/操作流程.md`](docs/操作流程.md)。
 
 ---
 
@@ -269,7 +296,7 @@ python compare_preview.py       # → comparison.txt（三档 preview 对照）
 | 末尾追加伪造事件 | ❌ 抓到 | 追加项的 `_hash` 对不上 |
 | **改完重算整条链** | ✅ 通过 ⚠️ | **必须靠链外锚点 `anchor.json` 发现** |
 
-前 4 种见 [`tamper_demo.py`](tamper_demo.py)，第 5 种见 [`rechain_demo.py`](rechain_demo.py)：
+前 4 种见 [`examples/tamper_demo.py`](examples/tamper_demo.py)，第 5 种见 [`examples/rechain_demo.py`](examples/rechain_demo.py)：
 
 ```
 场景 B  改完把整条链重算一遍
@@ -344,15 +371,18 @@ python compare_preview.py       # → comparison.txt（三档 preview 对照）
 |---|---|
 | [`chainlog.py`](chainlog.py) | **主程序**：init / watch / announce / verify / show |
 | [`test_diff.py`](test_diff.py) | diff 行为的确定性测试（29 项：方向 / 边界 / 截断） |
-| [`tamper_demo.py`](tamper_demo.py) | 篡改检测演示（5 种手法） |
-| [`rechain_demo.py`](rechain_demo.py) | "篡改后重算链"演示 + 为什么必须有链外锚点 |
+| [`examples/tamper_demo.py`](examples/tamper_demo.py) | 篡改检测演示（5 种手法） |
+| [`examples/rechain_demo.py`](examples/rechain_demo.py) | "篡改后重算链"演示 + 为什么必须有链外锚点 |
 | [`tests/5kb/`](tests/5kb/README.md) | 5KB 实测：脚本、原始输出、结果汇总 |
-| [`交接总结.md`](交接总结.md) | **交接文档**：踩坑记录、设计取舍、验证方法、下一步 |
-| [`操作流程.md`](操作流程.md) | 零变量、可复制粘贴的傻瓜操作流程 |
+| [`docs/交接总结.md`](docs/交接总结.md) | **交接文档**：踩坑记录、设计取舍、验证方法、下一步 |
+| [`docs/操作流程.md`](docs/操作流程.md) | 零变量、可复制粘贴的傻瓜操作流程 |
 | `textfile.txt` | 被监视的目标文件（示例） |
 | `audit.json` | 生成的审计日志（含哈希链） |
 | `anchor.json` | **链外锚点**：固化的 `head_hash` |
 | [`待办.md`](待办.md) | 你（使用者）的需求笔记 |
+
+> `examples/` 下的脚本读取的是**项目根目录**的 `audit.json` / `anchor.json`，
+> 所以在根目录执行：`python examples/tamper_demo.py`。
 
 ---
 

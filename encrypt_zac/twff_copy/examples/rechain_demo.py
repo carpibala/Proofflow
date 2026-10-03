@@ -4,6 +4,10 @@ rechain_demo.py — 演示「篡改后重算整条链」，以及为什么必须
 结论预告：
     重算后的日志，链内校验（以及 twff 自带的 verify_process_log）会 PASS，
     只有和链外锚点 anchor.json 比对 head_hash 才能发现。
+
+用法（在项目根目录执行）:
+    python examples/rechain_demo.py
+读取的是项目根目录下的 audit.json 与 anchor.json（不是本目录）。
 """
 from __future__ import annotations
 
@@ -12,11 +16,12 @@ import json
 import pathlib
 import sys
 
-HERE = pathlib.Path(__file__).parent
-sys.path.insert(0, str(HERE))
+HERE = pathlib.Path(__file__).parent          # examples/
+ROOT = HERE.parent                            # 项目根目录
+sys.path.insert(0, str(ROOT))
 from chainlog import compute_event_hash, verify_chain  # noqa: E402
 
-REPO = HERE.parent / "twff"
+REPO = ROOT.parent / "twff"                   # TWFF 仓库（项目根目录的兄弟目录）
 
 
 def load_repo_verifier():
@@ -30,8 +35,8 @@ def load_repo_verifier():
 
 def main() -> int:
     repo_verify = load_repo_verifier()
-    log = json.loads((HERE / "audit.json").read_text(encoding="utf-8"))
-    anchor = json.loads((HERE / "anchor.json").read_text(encoding="utf-8"))
+    log = json.loads((ROOT / "audit.json").read_text(encoding="utf-8"))
+    anchor = json.loads((ROOT / "anchor.json").read_text(encoding="utf-8"))
     original_head = log["_integrity"]["head_hash"]
     n = len(log["events"])
 

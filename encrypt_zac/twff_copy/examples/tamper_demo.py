@@ -3,6 +3,10 @@ tamper_demo.py — 篡改检测演示
 
 复制 audit.json 制造 5 种篡改，逐一复算哈希链，看哪种能被抓到。
 直接复用 chainlog.py 里的 verify_chain / compute_event_hash，不重复实现。
+
+用法（在项目根目录执行）:
+    python examples/tamper_demo.py
+读取的是项目根目录下的 audit.json 与 anchor.json（不是本目录）。
 """
 from __future__ import annotations
 
@@ -11,11 +15,12 @@ import json
 import pathlib
 import sys
 
-HERE = pathlib.Path(__file__).parent
-sys.path.insert(0, str(HERE))
+HERE = pathlib.Path(__file__).parent          # examples/
+ROOT = HERE.parent                            # 项目根目录
+sys.path.insert(0, str(ROOT))
 from chainlog import compute_event_hash, verify_chain  # noqa: E402
 
-ORIGINAL = HERE / "audit.json"
+ORIGINAL = ROOT / "audit.json"
 
 
 def load() -> dict:
