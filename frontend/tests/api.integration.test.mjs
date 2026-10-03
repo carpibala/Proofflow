@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { emptyDocument, replaceRange } from "../lib/editor-document.ts";
 import { hashEvidenceEvent } from "../lib/proof-format.ts";
 
@@ -111,6 +114,16 @@ test("documents and events persist with idempotency, versioning and source check
     }), saved.eventHash);
   }
 
+  assert.deepEqual(history.body.events.map((event) => event.type), ["MANUAL_EDIT", "PASTE", "AI_INSERT"]);
+  assert.equal(history.body.events.filter((event) => event.type === "PASTE").length, 1);
+  assert.equal(history.body.events[1].insertedText, " pasted");
+  assert.deepEqual(history.body.events[1].insertPosition, { path: [0], offset: 5 });
+  const verified = await request(`/api/documents/${id}/verify`);
+  assert.equal(verified.status, 200);
+  assert.equal(verified.body.valid, true);
+  assert.equal(verified.body.checkedEvents, 3);
+  assert.equal(verified.body.headHash, history.body.events[2].eventHash);
+
   const competing = await Promise.all(["A", "B"].map((letter) => request(`/api/documents/${id}/events`, "POST", {
     documentId: id, baseVersion: 3,
     event: { operationId: randomUUID(), type: "MANUAL_EDIT", snippet: letter },
@@ -119,4 +132,35 @@ test("documents and events persist with idempotency, versioning and source check
   assert.deepEqual(competing.map((result) => result.status).sort(), [201, 409]);
   const finalDocument = await request(`/api/documents/${id}`);
   assert.equal(finalDocument.body.version, 4);
+  const latestVerification = await request(`/api/documents/${id}/verify`);
+  assert.equal(latestVerification.body.valid, true);
+  assert.equal(latestVerification.body.checkedEvents, 4);
+});
+
+test("verification detects changes to saved display metadata", async (context) => {
+  const path = join(process.cwd(), "data", "proofflow.sqlite");
+  if (!existsSync(path)) return context.skip("The target server does not use this local test database");
+  const created = await request("/api/documents", "POST", {
+    title: "Metadata verification", editorSchemaVersion: 1, contentJson: emptyDocument(),
+  });
+  const id = created.body.id;
+  const saved = await request(`/api/documents/${id}/events`, "POST", {
+    documentId: id, baseVersion: 0,
+    event: { operationId: randomUUID(), type: "MANUAL_EDIT", snippet: "original" },
+    contentJson: replaceRange(emptyDocument(), 0, 0, "original"),
+  });
+  assert.equal(saved.status, 201);
+
+  const connection = new DatabaseSync(path);
+  try {
+    const changed = connection.prepare("UPDATE events SET type = 'PASTE' WHERE id = ?").run(saved.body.eventId);
+    if (changed.changes === 0) return context.skip("The target server uses another database");
+    const result = await request(`/api/documents/${id}/verify`);
+    assert.equal(result.status, 200);
+    assert.equal(result.body.valid, false);
+    assert.equal(result.body.code, "EVENT_METADATA_MISMATCH");
+  } finally {
+    connection.prepare("UPDATE events SET type = 'MANUAL_EDIT' WHERE id = ?").run(saved.body.eventId);
+    connection.close();
+  }
 });

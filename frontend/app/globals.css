@@ -76,6 +76,44 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .timeline-content p { color: #59686b; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; margin: 7px 0 5px; }
 .timeline-content code { color: #9aa7a7; font-size: 10px; }
 .timeline-empty { color: #96a2a4; font-size: 12px; line-height: 1.5; }
+.side-tabs { display: inline-flex; border: 1px solid #d6dfde; border-radius: 5px; padding: 2px; gap: 2px; }
+.side-tabs button { border: 0; border-radius: 3px; padding: 5px 11px; background: transparent; color: #607176; font-size: 12px; font-weight: 700; }
+.side-tabs button[aria-selected="true"] { background: #e4f1ee; color: #155e58; }
+.record-explorer { margin-top: 18px; }
+.record-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid #e5eae9; border-bottom: 1px solid #e5eae9; }
+.record-stats > div { padding: 13px 0; display: flex; flex-direction: column; gap: 3px; }
+.record-stats > div + div { border-left: 1px solid #e5eae9; padding-left: 16px; }
+.record-stats strong { font-size: 21px; line-height: 1; color: #263a3c; }
+.record-stats span { font-size: 11px; color: #708185; }
+.record-controls { display: grid; grid-template-columns: minmax(0, 1fr) 104px; gap: 7px; margin-top: 16px; }
+.record-search { display: flex; align-items: center; gap: 6px; min-width: 0; border: 1px solid #d6dfde; border-radius: 5px; padding: 0 8px; color: #728284; }
+.record-search input { width: 100%; min-width: 0; border: 0; outline: 0; padding: 8px 0; font-size: 11px; color: #263a3c; }
+.record-controls select { min-width: 0; border: 1px solid #d6dfde; border-radius: 5px; background: #fff; color: #334448; padding: 0 4px; font-size: 11px; }
+.record-list-heading { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 7px; color: #708185; font-size: 11px; }
+.record-list-heading button { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: #126b62; font-size: 11px; }
+.record-list { max-height: 350px; overflow: auto; border-top: 1px solid #e5eae9; }
+.record-entry { padding: 11px 0; border-bottom: 1px solid #e5eae9; }
+.record-entry summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 7px; list-style: none; cursor: pointer; }
+.record-entry summary::-webkit-details-marker { display: none; }
+.record-entry summary::after { content: "+"; color: #708185; font-size: 15px; grid-column: 4; }
+.record-entry[open] summary::after { content: "−"; }
+.record-type { font-size: 12px; font-weight: 700; color: #46585a; }
+.record-type.paste { color: #95611e; }
+.record-type.ai_insert { color: #126c5e; }
+.record-version, .record-entry time { font-size: 10px; color: #849397; white-space: nowrap; }
+.record-snippet { margin: 7px 0 0; font-size: 11px; line-height: 1.5; color: #55676a; overflow-wrap: anywhere; }
+.record-attributes { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 7px 9px; margin: 12px 0 0; padding: 10px 0 0; border-top: 1px dashed #dfe7e5; font-size: 10px; line-height: 1.5; }
+.record-attributes dt { color: #77878a; }
+.record-attributes dd { margin: 0; color: #334448; overflow-wrap: anywhere; white-space: pre-wrap; }
+.record-attributes code { font-size: 10px; }
+.record-full-text { max-height: 110px; overflow: auto; }
+.record-empty { color: #88979a; font-size: 12px; line-height: 1.5; }
+.record-verification { border-top: 1px solid #e5eae9; margin-top: 14px; padding-top: 14px; }
+.record-verification button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; width: 100%; padding: 9px 12px; border: 1px solid #b4cec7; border-radius: 5px; background: #edf7f3; color: #155e58; font-size: 12px; font-weight: 700; }
+.record-verification button:disabled { opacity: .55; cursor: not-allowed; }
+.record-verification p { margin: 9px 0 0; font-size: 11px; line-height: 1.5; color: #728284; }
+.record-verification .verification-ok { color: #176b55; }
+.record-verification .verification-error { color: #ae3c2f; }
 .side-footer { border-top: 1px solid #e5eae9; padding: 15px 24px; color: #8b989a; font-size: 11px; line-height: 1.5; }
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: #173d3a; color: white; padding: 10px 16px; border-radius: 5px; font-size: 12px; box-shadow: 0 8px 24px #142c2b30; }
 @media (max-width: 900px) { .workspace { grid-template-columns: minmax(0, 1fr) 310px; } .editor-scroll { padding: 24px; } .pane-heading { padding: 0 24px; } .document-sheet { padding: 28px 30px 18px; } }

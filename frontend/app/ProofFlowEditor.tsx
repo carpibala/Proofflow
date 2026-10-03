@@ -12,6 +12,7 @@ import {
   type EditorDocument,
 } from "@/lib/editor-document";
 import { samplePrompt, sampleResponse } from "@/lib/demo-ai";
+import RecordExplorer from "./RecordExplorer";
 
 type EventType = "MANUAL_EDIT" | "PASTE" | "AI_INSERT";
 type DraftEvent = {
@@ -94,6 +95,7 @@ export default function ProofFlowEditor() {
   const [retryToken, setRetryToken] = useState(0);
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
   const [exported, setExported] = useState(false);
+  const [sideView, setSideView] = useState<"timeline" | "records">("timeline");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const compositionStart = useRef<EditorDocument | null>(null);
   const creating = useRef(false);
@@ -395,8 +397,8 @@ export default function ProofFlowEditor() {
             <button className="insert-button" onClick={() => insertText("AI_INSERT", draft.demoAiResponse?.responseText ?? sampleResponse)}><Plus size={17} />插入到文档</button>
           </div>
           <div className="timeline-panel">
-            <div className="section-heading"><h2>创建时间线</h2><span>{draft.events.length} 条本地事件</span></div>
-            <div className="timeline-list">
+            <div className="section-heading"><div className="side-tabs" role="tablist" aria-label="记录视图"><button type="button" role="tab" aria-selected={sideView === "timeline"} onClick={() => setSideView("timeline")}>时间线</button><button type="button" role="tab" aria-selected={sideView === "records"} onClick={() => setSideView("records")}>记录</button></div>{sideView === "timeline" && <span>{draft.events.length} 条本地事件</span>}</div>
+            {sideView === "timeline" ? <div className="timeline-list" role="tabpanel" aria-label="创建时间线">
               {draft.events.length ? [...draft.events].reverse().map((event) => (
                 <div
                   className={`timeline-item ${hoveredEventId === event.operationId ? "is-linked" : ""}`}
@@ -408,7 +410,7 @@ export default function ProofFlowEditor() {
                   <div className="timeline-content"><div className="timeline-meta"><strong>{eventLabel(event.type)}</strong><time dateTime={event.timestamp}>{new Date(event.timestamp).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3 })}</time></div><p>{event.snippet}</p><code>{event.operationId.slice(0, 8)}</code></div>
                 </div>
               )) : <div className="timeline-empty">开始编辑后，这里会显示操作记录。</div>}
-            </div>
+            </div> : <RecordExplorer documentId={draft.documentId} savedEventCount={draft.savedEventCount ?? 0} pendingCount={Math.max(0, draft.events.length - (draft.savedEventCount ?? 0)) + (draft.pendingManual ? 1 : 0)} onHover={setHoveredEventId} />}
           </div>
           <div className="side-footer">本机 Demo 使用 SQLite；尚无用户鉴权、签名与证书签发。</div>
         </aside>

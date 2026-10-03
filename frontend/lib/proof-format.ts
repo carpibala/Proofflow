@@ -119,6 +119,61 @@ export function hashEvidenceEvent(event: Omit<EvidenceEvent, "eventHash">): stri
   })}`);
 }
 
+export type ChainVerification = {
+  valid: boolean;
+  checkedEvents: number;
+  headHash: string;
+  code?: string;
+  message?: string;
+};
+
+// This verifier only needs an evidence package, so it can also run outside the API/database.
+export function verifyEvidenceChain(evidence: EvidenceData, expectedHeadHash?: string): ChainVerification {
+  const fail = (code: string, message: string, checkedEvents: number): ChainVerification => ({
+    valid: false, checkedEvents, headHash: evidence.eventHeadHash, code, message,
+  });
+  if (evidence.eventCount !== evidence.events.length || evidence.finalVersion !== evidence.events.length) {
+    return fail("INCOMPLETE_HISTORY", "Event count does not match document version", 0);
+  }
+  let previousHash = GENESIS_HASH;
+  const eventIds = new Set<string>();
+  const operationIds = new Set<string>();
+  for (const [index, event] of evidence.events.entries()) {
+    if (!event || !event.event || event.documentId !== evidence.documentId || event.version !== index + 1 ||
+        eventIds.has(event.eventId) || operationIds.has(event.event.operationId)) {
+      return fail("INVALID_EVENT_SEQUENCE", `Event ${index + 1} has an invalid identity or version`, index);
+    }
+    if (event.previousHash !== previousHash) {
+      return fail("BROKEN_EVENT_CHAIN", `Event ${index + 1} has the wrong previous hash`, index);
+    }
+    try {
+      if (hashEvidenceEvent(event) !== event.eventHash) {
+        return fail("BROKEN_EVENT_CHAIN", `Event ${index + 1} hash does not match its contents`, index);
+      }
+    } catch {
+      return fail("INVALID_EVENT_PAYLOAD", `Event ${index + 1} cannot be hashed`, index);
+    }
+    eventIds.add(event.eventId);
+    operationIds.add(event.event.operationId);
+    previousHash = event.eventHash;
+  }
+  if (evidence.eventHeadHash !== previousHash) {
+    return fail("HEAD_MISMATCH", "Stored head hash does not match the event chain", evidence.events.length);
+  }
+  try {
+    if (hashContent(evidence.contentJson) !== evidence.contentHash ||
+        (evidence.events.length > 0 && canonicalJson(evidence.events.at(-1)!.contentAfter) !== canonicalJson(evidence.contentJson))) {
+      return fail("CONTENT_MISMATCH", "Current document differs from the recorded final content", evidence.events.length);
+    }
+  } catch {
+    return fail("INVALID_CONTENT", "Current document cannot be hashed", evidence.events.length);
+  }
+  if (expectedHeadHash !== undefined && expectedHeadHash !== previousHash) {
+    return fail("ANCHOR_MISMATCH", "Event head differs from the trusted external head", evidence.events.length);
+  }
+  return { valid: true, checkedEvents: evidence.events.length, headHash: previousHash };
+}
+
 export function certificateSigningBytes(certificate: UnsignedCertificate): Buffer {
   const fields: UnsignedCertificate = {
     certificateId: certificate.certificateId,

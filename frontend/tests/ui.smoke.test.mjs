@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { readFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -49,6 +50,20 @@ test("editor saves manual, paste and AI events and restores them after reload", 
     await page.getByText("正文服务端版本 3").waitFor();
     assert.match(await editor.inputValue(), /AI can offer personalized practice/);
 
+    await page.getByRole("tab", { name: "记录" }).click();
+    await page.getByText("检索到 3 条").waitFor();
+    assert.deepEqual(await page.locator(".record-stats strong").allTextContents(), ["3", "1"]);
+    await page.getByRole("combobox", { name: "筛选记录类型" }).selectOption("PASTE");
+    assert.equal(await page.locator(".record-entry").count(), 1);
+    await page.locator(".record-entry summary").click();
+    assert.equal(await page.getByText("插入字符").count(), 1);
+    assert.equal(await page.getByText("字符变化").count(), 1);
+    await page.getByRole("searchbox", { name: "检索记录" }).fill("no matching event");
+    assert.equal(await page.getByText("检索到 0 条").count(), 1);
+    await page.getByRole("searchbox", { name: "检索记录" }).fill("");
+    await page.getByRole("button", { name: "验证记录" }).click();
+    await page.getByText("内部链一致，已检查 3 条。未签名、未校验外部锚点。").waitFor();
+
     const downloadPromise = page.waitForEvent("download");
     await page.getByRole("button", { name: "导出本地 JSON 草稿" }).click();
     const download = await downloadPromise;
@@ -67,6 +82,8 @@ test("editor saves manual, paste and AI events and restores them after reload", 
     assert.equal(await page.locator(".timeline-item").count(), 3);
 
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("tab", { name: "记录" }).click();
+    await page.getByText("检索到 3 条").waitFor();
     await page.screenshot({ path: join(output, "proofflow-mobile.png"), fullPage: true });
     const width = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, viewport: innerWidth }));
     assert.ok(width.scroll <= width.viewport, `Mobile layout overflows: ${JSON.stringify(width)}`);
@@ -149,5 +166,29 @@ test("each inserted punctuation mark records immediately, including Chinese punc
       input.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
     });
     await page.getByText("正文服务端版本 4").waitFor({ timeout: 1500 });
+  } finally { await browser.close(); }
+});
+
+test("a document missing from this server shows a useful error without deleting the local draft", async () => {
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage();
+    const documentId = randomUUID();
+    const operationId = randomUUID();
+    await page.goto(base);
+    await page.evaluate(({ documentId, operationId }) => {
+      const document = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "local work" }] }] };
+      localStorage.setItem("proofflow-local-draft-v1", JSON.stringify({
+        title: "Local draft", document, documentId, serverVersion: 0, savedEventCount: 0,
+        events: [{ operationId, type: "MANUAL_EDIT", timestamp: new Date().toISOString(), snippet: "local work", contentAfter: document }],
+      }));
+    }, { documentId, operationId });
+    await page.reload();
+    await page.getByRole("tab", { name: "记录" }).click();
+    await page.getByRole("alert").getByText(/当前服务未找到这份文档/).waitFor();
+    await page.getByText("有 1 条待保存操作，保存完成后可验证。").waitFor();
+    await page.reload();
+    assert.equal(await page.getByRole("textbox", { name: "文档正文" }).inputValue(), "local work");
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("proofflow-local-draft-v1")).documentId), documentId);
   } finally { await browser.close(); }
 });

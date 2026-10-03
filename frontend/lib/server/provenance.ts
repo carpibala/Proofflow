@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { plainText, replaceRange, type EditorDocument } from "../editor-document";
 import { samplePrompt, sampleResponse } from "../demo-ai";
-import { canonicalJson, GENESIS_HASH, HASH_FORMAT_VERSION, hashContent, hashEvidenceEvent, normalizeProofEvent, type EvidenceData, type EvidenceEvent, type ProofEvent } from "../proof-format";
+import { canonicalJson, GENESIS_HASH, HASH_FORMAT_VERSION, hashContent, hashEvidenceEvent, normalizeProofEvent, verifyEvidenceChain, type EvidenceData, type EvidenceEvent, type ProofEvent } from "../proof-format";
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
@@ -145,23 +145,17 @@ export function listEvents(id: string) {
   }));
 }
 
-// Call inside the same transaction that will freeze and sign this document.
 // Legacy event rows lack the original optional-field shape and cannot be certified as v1.
-export function readSignableEvidence(connection: DatabaseSync, id: string): EvidenceData {
+function assembleEvidence(connection: DatabaseSync, id: string): EvidenceData {
   if (!uuid.test(id)) throw new ApiError(400, "INVALID_ID", "Invalid document ID");
   const document = connection.prepare("SELECT version, content_json FROM documents WHERE id = ?").get(id) as Row | undefined;
   if (!document) throw new ApiError(404, "NOT_FOUND", "Document not found");
   const rows = connection.prepare("SELECT * FROM events WHERE document_id = ? ORDER BY version ASC").all(id) as Row[];
   const contentJson = JSON.parse(document.content_json as string) as EditorDocument;
-  if (rows.length !== document.version) throw new ApiError(409, "INCOMPLETE_HISTORY", "Event count does not match document version");
   const events: EvidenceEvent[] = [];
-  let previousHash = GENESIS_HASH;
   for (const row of rows) {
     if (row.hash_format_version !== HASH_FORMAT_VERSION || typeof row.event_payload_json !== "string") {
       throw new ApiError(409, "LEGACY_EVENT_FORMAT", "Document contains events without a reproducible v1 payload");
-    }
-    if (row.version !== events.length + 1 || row.previous_hash !== previousHash) {
-      throw new ApiError(409, "BROKEN_EVENT_CHAIN", "Event versions or previous hashes are inconsistent");
     }
     const event: EvidenceEvent = {
       eventId: row.id as string,
@@ -170,27 +164,52 @@ export function readSignableEvidence(connection: DatabaseSync, id: string): Evid
       event: JSON.parse(row.event_payload_json) as ProofEvent,
       receivedAt: row.received_at as string,
       contentAfter: JSON.parse(row.content_after_json as string) as EditorDocument,
-      previousHash,
+      previousHash: row.previous_hash as string,
       eventHash: row.event_hash as string,
     };
-    if (hashEvidenceEvent(event) !== event.eventHash) {
-      throw new ApiError(409, "BROKEN_EVENT_CHAIN", "Stored event hash does not match its payload");
+    if (row.operation_id !== event.event.operationId || row.type !== event.event.type ||
+        row.client_timestamp !== event.event.timestamp || row.snippet !== (event.event.snippet ?? "") ||
+        row.ai_response_id !== event.event.aiResponseId || row.inserted_text !== event.event.insertedText ||
+        row.replaced_length !== event.event.replacedLength ||
+        canonicalJson(row.insert_position_json ? JSON.parse(row.insert_position_json as string) : null) !== canonicalJson(event.event.insertPosition)) {
+      throw new ApiError(409, "EVENT_METADATA_MISMATCH", "Stored event fields differ from their hashed payload");
     }
     events.push(event);
-    previousHash = event.eventHash;
   }
-  if (events.length && canonicalJson(events.at(-1)!.contentAfter) !== canonicalJson(contentJson)) {
-    throw new ApiError(409, "CONTENT_MISMATCH", "Final document differs from its last event");
-  }
-  return {
+  const evidence: EvidenceData = {
     documentId: id,
     finalVersion: document.version as number,
     contentJson,
     eventCount: events.length,
-    eventHeadHash: previousHash,
+    eventHeadHash: events.at(-1)?.eventHash ?? GENESIS_HASH,
     contentHash: hashContent(contentJson),
     events,
   };
+  return evidence;
+}
+
+// Call inside the same transaction that will freeze and sign this document.
+export function readSignableEvidence(connection: DatabaseSync, id: string): EvidenceData {
+  const evidence = assembleEvidence(connection, id);
+  const result = verifyEvidenceChain(evidence);
+  if (!result.valid) throw new ApiError(409, result.code!, result.message!);
+  return evidence;
+}
+
+export function verifyDocumentChain(id: string) {
+  if (!uuid.test(id)) throw new ApiError(400, "INVALID_ID", "Invalid document ID");
+  try {
+    const evidence = assembleEvidence(db(), id);
+    return verifyEvidenceChain(evidence);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      return { valid: false, checkedEvents: 0, headHash: "", code: error.code, message: error.message };
+    }
+    if (error instanceof SyntaxError || error instanceof TypeError) {
+      return { valid: false, checkedEvents: 0, headHash: "", code: "INVALID_STORED_DATA", message: "Stored evidence cannot be parsed or hashed" };
+    }
+    throw error;
+  }
 }
 
 export function saveEvent(id: string, input: unknown) {

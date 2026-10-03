@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync, sign, verify } from "node:crypto";
 import {
   canonicalJson, certificateSigningBytes, GENESIS_HASH, hashContent,
-  hashEvidenceEvent, keyIdFromPublicKey, normalizeProofEvent,
+  hashEvidenceEvent, keyIdFromPublicKey, normalizeProofEvent, verifyEvidenceChain,
 } from "../lib/proof-format.ts";
 
 const documentId = "11111111-1111-4111-8111-111111111111";
@@ -46,6 +46,21 @@ test("changes to content or event change the v1 digest", () => {
   assert.notEqual(hashEvidenceEvent({ ...first, event: { ...first.event, snippet: "另一段" } }), hashEvidenceEvent(first));
   assert.notEqual(hashEvidenceEvent({ ...first, contentAfter: { ...contentJson, content: [] } }), hashEvidenceEvent(first));
   assert.notEqual(hashEvidenceEvent({ ...first, version: 2 }), hashEvidenceEvent(first));
+});
+
+test("standalone chain verifier checks sequence, payload, final content and an optional anchor", () => {
+  const event = { ...first, eventHash: hashEvidenceEvent(first) };
+  const evidence = {
+    documentId, finalVersion: 1, contentJson, eventCount: 1,
+    eventHeadHash: event.eventHash, contentHash: hashContent(contentJson), events: [event],
+  };
+  assert.deepEqual(verifyEvidenceChain(evidence), { valid: true, checkedEvents: 1, headHash: event.eventHash });
+  assert.equal(verifyEvidenceChain(evidence, "f".repeat(64)).code, "ANCHOR_MISMATCH");
+  assert.equal(verifyEvidenceChain({ ...evidence, events: [] }).code, "INCOMPLETE_HISTORY");
+  assert.equal(verifyEvidenceChain({ ...evidence, events: [{ ...event, version: 2 }] }).code, "INVALID_EVENT_SEQUENCE");
+  assert.equal(verifyEvidenceChain({ ...evidence, events: [{ ...event, event: { ...event.event, snippet: "tampered" } }] }).code, "BROKEN_EVENT_CHAIN");
+  assert.equal(verifyEvidenceChain({ ...evidence, contentJson: { ...contentJson, content: [] } }).code, "CONTENT_MISMATCH");
+  assert.equal(verifyEvidenceChain({ ...evidence, eventHeadHash: "f".repeat(64) }).code, "HEAD_MISMATCH");
 });
 
 test("certificate signing bytes bind metadata and omit signature", () => {
