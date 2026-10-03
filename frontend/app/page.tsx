@@ -1,49 +1,73 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
+// TypeScript types for JSON data structure
+type DocumentContent = 
+  | { type: 'paragraph'; content: string; }
+  | { type: 'formatted'; content: string; style: string; };
+
+interface EventLog {
+  operationId: string;
+  baseVersion: number;
+  aiResponseId?: string;
+}
 
 export default function Home() {
-  const [timeline, setTimeline] = useState<string[]>([]);
-  const [text, setText] = useState<string>('');
+  const [timeline, setTimeline] = useState<EventLog[]>([]);
+  const [text, setText] = useState<DocumentContent[]>([
+    { type: 'paragraph', content: 'AI in Education: The integration of AI in educational settings can enhance learning experiences.' }
+  ]);
+  const [baseVersion, setBaseVersion] = useState<number>(0);
 
   const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const pastedText = event.clipboardData.getData('text');
-    setText(text + pastedText);
-    setTimeline([...timeline, `Pasted: ${pastedText}`]);
+    const newContent: DocumentContent = { type: 'paragraph', content: pastedText };
+    setText([...text, newContent]);
+    const newEvent: EventLog = { operationId: Date.now().toString(), baseVersion: baseVersion + 1 };
+    setTimeline([...timeline, newEvent]);
   };
 
   const handleInsert = () => {
-    const aiText = 'AI Inserted Text'; // Placeholder for AI text
-    setText(text + aiText);
-    setTimeline([...timeline, `Inserted: ${aiText}`]);
+    const aiText = 'AI can provide personalized learning experiences.';
+    const newContent: DocumentContent = { type: 'formatted', content: aiText, style: 'bold' };
+    setText([...text, newContent]);
+    const newEvent: EventLog = { operationId: Date.now().toString(), baseVersion: baseVersion + 1, aiResponseId: 'AI-12345' };
+    setTimeline([...timeline, newEvent]);
   };
 
   const handleGenerateCertificate = () => {
-    alert('Certificate Generated!'); // Placeholder for certificate generation
+    alert('Certificate Generated!');
   };
 
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-gray-900 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-gray-800 dark:bg-black sm:items-start">
+    <div className="flex flex-col flex-1 items-center justify-center bg-slate-50 font-sans">
+      <header className="flex justify-between items-center w-full p-4 bg-white border-b border-gray-300">
+        <h1 className="text-xl font-bold">AI in the Classroom: Opportunities and Ethics</h1>
+        <div className="flex items-center">
+          <span className="w-2 h-2 bg-green-500 rounded-full mr-2" />
+          <button onClick={handleGenerateCertificate} className="bg-teal-500 text-white px-4 py-2 rounded-md hover:bg-teal-400">Generate Certificate</button>
+        </div>
+      </header>
+      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white">
         <textarea
-          className="w-full h-64 p-4 border border-gray-600 rounded-md bg-gray-700 text-white"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
+          className="w-full h-64 p-4 border border-gray-600 rounded-md bg-gray-100 text-black"
+          value={text.map(item => item.content).join('\n')}
+          onChange={(e) => setText(e.target.value.split('\n').map(content => ({ type: 'paragraph', content })))}
           onPaste={handlePaste}
           placeholder="Type here..."
         />
         <div className="flex justify-between w-full mt-4">
-          <button onClick={handleInsert} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-500">Insert</button>
-          <button onClick={handleGenerateCertificate} className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-500">Generate Certificate</button>
+          <button onClick={handleInsert} className="bg-teal-500 text-white px-4 py-2 rounded-md hover:bg-teal-400">Insert</button>
         </div>
       </main>
-      <div className="w-full bg-gray-800 text-white p-4">
+      <aside className="w-full bg-gray-100 text-black p-4">
         <h2 className="text-lg font-semibold">Creation Timeline</h2>
         <ul>
           {timeline.map((event, index) => (
-            <li key={index}>{event}</li>
+            <li key={index}>{`Operation ID: ${event.operationId}, Base Version: ${event.baseVersion}`}</li>
           ))}
         </ul>
-      </div>
+      </aside>
     </div>
   );
 }
