@@ -282,7 +282,10 @@ export default function ProofFlowEditor() {
           </div>
           <div className="editor-scroll">
             <div className="document-sheet">
-              <input className="document-title" aria-label="文档标题" title="标题变更暂仅保存在此浏览器" value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} />
+              <input className="document-title" aria-label="文档标题" title="标题变更暂仅保存在此浏览器" value={draft.title} onChange={(event) => {
+                const title = event.currentTarget.value;
+                setDraft((current) => ({ ...current, title }));
+              }} />
               <div className="editor-toolbar"><button className="tool-button" title="加粗选中的文字" aria-label="加粗选中的文字" onMouseDown={(event) => event.preventDefault()} onClick={handleBold}><Bold size={17} /></button><span className="toolbar-divider" /><span className="toolbar-note">选中文字后可加粗</span></div>
               <textarea
                 ref={textareaRef}
@@ -302,13 +305,14 @@ export default function ProofFlowEditor() {
                   const before = compositionStart.current;
                   compositionStart.current = null;
                   if (!before) return;
-                  const nextDocument = reconcileText(before, event.currentTarget.value);
+                  const nextText = event.currentTarget.value;
+                  const nextDocument = reconcileText(before, nextText);
                   setDraft((current) => ({
                     ...current,
                     document: nextDocument,
                     events: [...current.events, {
                       operationId: crypto.randomUUID(), type: "MANUAL_EDIT", timestamp: new Date().toISOString(),
-                      snippet: event.currentTarget.value.slice(0, 72), contentAfter: nextDocument,
+                      snippet: nextText.slice(0, 72) || "文字已删除", contentAfter: nextDocument,
                     }],
                   }));
                 }}

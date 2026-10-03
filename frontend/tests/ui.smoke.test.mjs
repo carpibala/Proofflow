@@ -70,5 +70,13 @@ test("editor saves manual, paste and AI events and restores them after reload", 
     await page.screenshot({ path: join(output, "proofflow-mobile.png"), fullPage: true });
     const width = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, viewport: innerWidth }));
     assert.ok(width.scroll <= width.viewport, `Mobile layout overflows: ${JSON.stringify(width)}`);
+
+    await editor.evaluate((input) => {
+      input.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+      input.value += "中文";
+      input.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+    });
+    await page.getByText("正文服务端版本 4").waitFor();
+    assert.match(await editor.inputValue(), /中文$/);
   } finally { await browser.close(); }
 });
