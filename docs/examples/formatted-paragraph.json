@@ -1,0 +1,23 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "AI in the classroom provides "
+        },
+        {
+          "type": "text",
+          "marks": [{ "type": "bold" }],
+          "text": "personalized learning opportunities"
+        },
+        {
+          "type": "text",
+          "text": " while maintaining academic integrity."
+        }
+      ]
+    }
+  ]
+}
