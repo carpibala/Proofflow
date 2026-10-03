@@ -1,0 +1,30 @@
+{
+  "documentId": "doc_883012",
+  "baseVersion": 3,
+  "event": {
+    "operationId": "op_1727938200000",
+    "type": "PASTE",
+    "timestamp": "2026-10-03T14:00:00Z",
+    "aiResponseId": null,
+    "snippet": "AI in the classroom provides"
+  },
+  "contentJson": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "AI in the classroom provides "
+          },
+          {
+            "type": "text",
+            "marks": [{ "type": "bold" }],
+            "text": "personalized learning opportunities"
+          }
+        ]
+      }
+    ]
+  }
+}

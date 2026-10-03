@@ -1,0 +1,95 @@
+{
+  "version": "0.1.0",
+  "session_id": "3f2a1b4c-8e9d-4f7a-b2c1-1a2b3c4d5e6f",
+  "user_id": "anon-7f3a2c1b9d4e",
+  "start_time": "2026-02-16T09:00:00Z",
+  "end_time": "2026-02-16T09:47:22Z",
+  "content_source": "content/document.xhtml",
+  "events": [
+    {
+      "timestamp": "2026-02-16T09:00:01Z",
+      "type": "session_start",
+      "meta": {},
+      "_hash": "679ef97f34ee1429b2d8010ebd5a70f6f3d31f7dddb433a9872a01526efa204f"
+    },
+    {
+      "timestamp": "2026-02-16T09:01:15Z",
+      "type": "edit",
+      "meta": {
+        "position_start": 0,
+        "position_end": 280,
+        "source": "human"
+      },
+      "_hash": "318768ec4f734f6d4f4844b17b20ddcc939071aed2e29a5fdade272cc137fd41"
+    },
+    {
+      "timestamp": "2026-02-16T09:05:20Z",
+      "type": "paste",
+      "meta": {
+        "char_count": 142,
+        "source": "external",
+        "position_start": 280,
+        "position_end": 422,
+        "output_preview": "The rapid advancement of artificial intelligence has transformed many aspects"
+      },
+      "_hash": "59d286df520222b7d66ef485e09e7b5791ad4358552b7df003783aed0921420a"
+    },
+    {
+      "timestamp": "2026-02-16T09:10:45Z",
+      "type": "ai_interaction",
+      "meta": {
+        "interaction_type": "paraphrase",
+        "model": "gpt-4o",
+        "input_preview": "make this more formal",
+        "output_preview": "subsequently, the implementation of neural architectures...",
+        "output_length": 320,
+        "position_start": 422,
+        "position_end": 742,
+        "acceptance": "partially_accepted"
+      },
+      "_hash": "2db971bcf6a83e33b33e661245ea90b5b2b5c540a64bcf7e32e1702a3c63ad81",
+      "output_preview": "Subsequently, the implementation was TAMPERED."
+    },
+    {
+      "timestamp": "2026-02-16T09:15:00Z",
+      "type": "edit",
+      "meta": {
+        "position_start": 742,
+        "position_end": 980,
+        "source": "human"
+      },
+      "_hash": "dfcbdc31752e5cab0d3912b9045d23cf5321a40e6889623a653a7bd37be0ca83"
+    },
+    {
+      "timestamp": "2026-02-16T09:30:00Z",
+      "type": "checkpoint",
+      "meta": {
+        "char_count_total": 980,
+        "word_count_total": 162,
+        "position": 980
+      },
+      "_hash": "02b12d45d60a2fffe0b9ae23fa6ac9eea5aa564b025c4f01a0a91049de2202bd"
+    },
+    {
+      "timestamp": "2026-02-16T09:35:14Z",
+      "type": "focus_change",
+      "meta": {
+        "duration_ms": 47000
+      },
+      "_hash": "dd842faacbd65fed191a1317dcd3e2c5a2f0849c988c278533fb6ea313927636"
+    },
+    {
+      "timestamp": "2026-02-16T09:47:22Z",
+      "type": "session_end",
+      "meta": {},
+      "_hash": "e5e948335fbe8b96f4097ef92477c5a4518af8014a5589b8ca00d094421b2602"
+    }
+  ],
+  "_integrity": {
+    "algorithm": "SHA-256-CHAIN",
+    "chain_length": 8,
+    "head_hash": "e5e948335fbe8b96f4097ef92477c5a4518af8014a5589b8ca00d094421b2602",
+    "session_id": "3f2a1b4c-8e9d-4f7a-b2c1-1a2b3c4d5e6f",
+    "note": "Per-event chained hash. Verify using spec §5.2."
+  }
+}

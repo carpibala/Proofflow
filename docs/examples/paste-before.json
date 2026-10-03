@@ -1,0 +1,15 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "marks": [{ "type": "bold" }],
+          "text": "personalized learning opportunities"
+        }
+      ]
+    }
+  ]
+}

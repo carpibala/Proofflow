@@ -1,0 +1,28 @@
+﻿========================================================================
+FILE: D:\hacku\teamproject\Proofflow\encrypt_zac\demo\full.twff
+  version      : 0.1.0
+  session_id   : 3f2a1b4c-8e9d-4f7a-b2c1-1a2b3c4d5e6f
+  user_id      : anon-7f3a2c1b9d4e
+  start → end  : 2026-02-16T09:00:00Z  →  2026-02-16T09:47:22Z
+  content      : content/document.xhtml
+  events       : 8  (session_start×1, edit×2, paste×1, ai_interaction×1, checkpoint×1, focus_change×1, session_end×1)
+  _integrity   : {"algorithm": "SHA-256-CHAIN", "chain_length": 8, "head_hash": "169dd19677d37dead058d74b69cbef31d9c6d3af568288f44869534f7c679c69", "session_id": "3f2a1b4c-8e9d-4f7a-b2c1-1a2b3c4d5e6f", "note": "Per-event chained hash. Verify using spec §5.2."}
+  ── events ──
+  [0] 2026-02-16T09:00:01Z  session_start    
+       _hash=679ef97f34ee1429b2d8010e…
+  [1] 2026-02-16T09:01:15Z  edit             source=human position_start=0
+       _hash=318768ec4f734f6d4f4844b1…
+  [2] 2026-02-16T09:05:20Z  paste            source=external char_count=142 position_start=280 preview='The rapid advancement of artificial inte'
+       _hash=59d286df520222b7d66ef485…
+  [3] 2026-02-16T09:10:45Z  ai_interaction   interaction_type=paraphrase model=gpt-4o acceptance=partially_accepted position_start=422 preview='subsequently, the implementation of neur'
+       _hash=94cdee14e59a8419daccbfee…
+  [4] 2026-02-16T09:15:00Z  edit             source=human position_start=742
+       _hash=6853bbde37fbf993d46c9238…
+  [5] 2026-02-16T09:30:00Z  checkpoint       word_count_total=162
+       _hash=c16835fb9af97e43c26b04cc…
+  [6] 2026-02-16T09:35:14Z  focus_change     duration_ms=47000
+       _hash=1f1e64f5062ebbafdfe1aa61…
+  [7] 2026-02-16T09:47:22Z  session_end      
+       _hash=169dd19677d37dead058d74b…
+  ── 校验 ──
+  ✅ INTACT  Log intact — 8 events verified.

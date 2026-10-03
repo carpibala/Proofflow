@@ -1,0 +1,248 @@
+{
+  "version": "0.2.0",
+  "session_id": "f3cfbe40-48c4-4863-90f6-cda302854fed",
+  "user_id": "anon-f2c56749b076",
+  "start_time": "2026-10-03T09:38:13Z",
+  "end_time": null,
+  "content_source": "textfile.txt",
+  "events": [
+    {
+      "timestamp": "2026-10-03T09:38:13Z",
+      "type": "chain_init",
+      "meta": {
+        "content_source": "textfile.txt"
+      },
+      "_hash": "3255ec3361f278119a043b29ebfc3dfeea30395dfb646c918bc4982e09ef8fbd"
+    },
+    {
+      "timestamp": "2026-10-03T09:38:13Z",
+      "type": "content_baseline",
+      "meta": {
+        "char_count": 14,
+        "line_count": 1,
+        "byte_count": 37,
+        "encoding": "utf-8-sig",
+        "content_sha256": "397ceba1e4838415673143e48ca4b066b7c80dcab1f3c6d6c9c9777174b4a8ca",
+        "preview": "生成式 AI 正在改变教育。"
+      },
+      "_hash": "d60ea93c031107860d9cc38ac239b25f875be8de92f3f870e2e4fdfbd239a9e7"
+    },
+    {
+      "timestamp": "2026-10-03T09:38:26Z",
+      "type": "watch_start",
+      "meta": {
+        "interval_sec": 1.0
+      },
+      "_hash": "2b65d3bd018e77460698a379ae99751b2f6c2af41056fa9f2404f205c78786fe"
+    },
+    {
+      "timestamp": "2026-10-03T09:38:35Z",
+      "type": "content_modified",
+      "meta": {
+        "char_count": 28,
+        "line_count": 1,
+        "byte_count": 71,
+        "encoding": "utf-8-sig",
+        "content_sha256": "5b5c5352ac5eaf260496dda6c0f02a042af80262e30851f88539211bd0f9c141",
+        "preview": "生成式 AI 正在改变教育。生成式 AI 正在改变教育。",
+        "delta_chars": 14,
+        "delta_lines": 0,
+        "mode": "add",
+        "removed": [],
+        "added": [
+          "生成式 AI 正在改变教育。"
+        ],
+        "diff_truncated": false
+      },
+      "_hash": "4cee25b1951f143a00d9a337e5331634c99edc42e16e239e1d6a76c37613c197"
+    },
+    {
+      "timestamp": "2026-10-03T09:39:04Z",
+      "type": "content_modified",
+      "meta": {
+        "char_count": 38,
+        "line_count": 1,
+        "byte_count": 101,
+        "encoding": "utf-8-sig",
+        "content_sha256": "71043101a104443ca96c8d7a36004ac47349dcc4c48ce4903471883c8608df2f",
+        "preview": "生成式 AI 正在改变教育。生成式 AI 正在改变教育。这不是一个好兆头，。",
+        "delta_chars": 10,
+        "delta_lines": 0,
+        "mode": "add",
+        "removed": [],
+        "added": [
+          "这不是一个好兆头，。"
+        ],
+        "diff_truncated": false
+      },
+      "_hash": "b64460aa08077a0776dea8dca4087eee949c1bb8e71dcf2a45346b7594c757e8"
+    },
+    {
+      "timestamp": "2026-10-03T09:39:17Z",
+      "type": "content_modified",
+      "meta": {
+        "char_count": 29,
+        "line_count": 1,
+        "byte_count": 74,
+        "encoding": "utf-8-sig",
+        "content_sha256": "b4a88523d5b090cf1e8f0b948a68cd25adec6a4bbf96062e66499e7c6c3f0145",
+        "preview": "生成式 AI 正在改变教育。生成式 AI 正在改变教育。这",
+        "delta_chars": -9,
+        "delta_lines": 0,
+        "mode": "del",
+        "removed": [
+          "不是一个好兆头，。"
+        ],
+        "added": [],
+        "diff_truncated": false
+      },
+      "_hash": "5f48aa203195c84a3127acac601200f4b11cc7cc40b2a7228bf59cbda9dd262c"
+    },
+    {
+      "timestamp": "2026-10-03T09:39:34Z",
+      "type": "content_modified",
+      "meta": {
+        "char_count": 34,
+        "line_count": 1,
+        "byte_count": 89,
+        "encoding": "utf-8-sig",
+        "content_sha256": "c43e5bfbc4badd9fb53b3fb136ab7bf95df523b7785330a1372e0af6911b0c88",
+        "preview": "生成式 AI 正在改变教育。生成式 AI 正在改变教育。这非常牛逼。",
+        "delta_chars": 5,
+        "delta_lines": 0,
+        "mode": "add",
+        "removed": [],
+        "added": [
+          "非常牛逼。"
+        ],
+        "diff_truncated": false
+      },
+      "_hash": "abbcac40861a913cbf65e84b33160071acbd0043cf318ac86b318ebf0ebafaa6"
+    },
+    {
+      "timestamp": "2026-10-03T09:39:48Z",
+      "type": "content_modified",
+      "meta": {
+        "char_count": 92,
+        "line_count": 3,
+        "byte_count": 171,
+        "encoding": "utf-8-sig",
+        "content_sha256": "d4c154f05649283c0cf537e875ae13416b37d5dacfcd1595f433a380410cf0b5",
+        "preview": "生成式 AI 正在改变教育。生成式 AI 正在改变教育。这非常牛逼。七万人团购herbs放大法国v保护你rgfsdbz\\r\\naewhejdklu,f\\r\\nsawfgetyu5rklyu.h",
+        "delta_chars": 58,
+        "delta_lines": 2,
+        "mode": "add",
+        "removed": [],
+        "added": [
+          "七万人团购herbs放大法国v保护你rgfsdbz\r\naewhejdklu,f\r\nsawfgetyu5rklyu.h"
+        ],
+        "diff_truncated": false
+      },
+      "_hash": "044583724c26c7f94f5d28184ad6dfaa71eace38a8e5ee030997ee220869b8bf"
+    },
+    {
+      "timestamp": "2026-10-03T09:40:11Z",
+      "type": "content_modified",
+      "meta": {
+        "char_count": 89,
+        "line_count": 4,
+        "byte_count": 168,
+        "encoding": "utf-8-sig",
+        "content_sha256": "661ecddce3551be2bf634fa0f4a2b8fa9b069ae8a44891b1f662955f9763ecd5",
+        "preview": "生成式 AI 正在改变教育。生成式 AI 正在改变教育。这非常牛逼。七万人团购herbs放大法国v保护你rgfsdbz\\r\\naewhejdklu,f\\r\\nsaw\\r\\ndshjdkylc",
+        "delta_chars": -3,
+        "delta_lines": 1,
+        "mode": "replace",
+        "removed": [
+          "fgetyu5rklyu.h"
+        ],
+        "added": [
+          "\r\ndshjdkylc"
+        ],
+        "diff_truncated": false
+      },
+      "_hash": "1867fbc7f03565f25b406457d60aaf3ae7cbac5f29db4464ea0201b6f3627ac4"
+    },
+    {
+      "timestamp": "2026-10-03T10:38:54Z",
+      "type": "watch_start",
+      "meta": {
+        "interval_sec": 1.0
+      },
+      "_hash": "892ed1263898efa18134586f8b8289e92b1a6f0395140d0c8eb3c95070c700cb"
+    },
+    {
+      "timestamp": "2026-10-03T10:39:20Z",
+      "type": "content_modified",
+      "meta": {
+        "char_count": 94,
+        "line_count": 5,
+        "byte_count": 179,
+        "encoding": "utf-8-sig",
+        "content_sha256": "2099f719b3521525332004356bcdfa276c98843058a7ea4c430c4b1d0930d8ac",
+        "preview": "生成式 AI 正在改变教育。生成式 AI 正在改变教育。这非常牛逼。七万人团购herbs放大法国v保护你rgfsdbz\\r\\naewhejdklu,f\\r\\nsaw\\r\\ndshjdkylc\\r\\n我很好",
+        "delta_chars": 5,
+        "delta_lines": 1,
+        "mode": "add",
+        "removed": [],
+        "added": [
+          "\r\n我很好"
+        ],
+        "diff_truncated": false
+      },
+      "_hash": "e962dc52e23179122dc9ac9c23ae4a46884fbeae1a50bd317d6a90111a400d88"
+    },
+    {
+      "timestamp": "2026-10-03T10:47:51Z",
+      "type": "watch_start",
+      "meta": {
+        "interval_sec": 1.0
+      },
+      "_hash": "b9593ddcb0a84f2263ae7518357ef0e0215d3229f7ac9677811b7133509fcef2"
+    },
+    {
+      "timestamp": "2026-10-03T10:52:46Z",
+      "type": "watch_start",
+      "meta": {
+        "interval_sec": 1.0
+      },
+      "_hash": "983d496e6947d82c1dc93a3ad25b4280981c398f2b360101450b40bbb5202b96"
+    },
+    {
+      "timestamp": "2026-10-03T10:52:57Z",
+      "type": "content_modified",
+      "meta": {
+        "char_count": 87,
+        "line_count": 4,
+        "byte_count": 166,
+        "encoding": "utf-8-sig",
+        "content_sha256": "97302ce02709dc8a1ffbab48cb44fe994343b83fc1d61620a9288d6626a93ec2",
+        "preview": "生成式 AI 正在改变教育。生成式 AI 正在改变教育。这非常牛逼。七万人团购herbs放大法国v保护你rgfsdbz\\r\\naewhejdklu,f\\r\\nsaw\\r\\ndshjdky",
+        "delta_chars": -7,
+        "delta_lines": -1,
+        "mode": "del",
+        "removed": [
+          "lc\r\n我很好"
+        ],
+        "added": [],
+        "diff_truncated": false
+      },
+      "_hash": "27b9302996931be72247d9616962c8b8301051fbbd802e8a8613b5e401b12411"
+    },
+    {
+      "timestamp": "2026-10-03T10:56:03Z",
+      "type": "watch_start",
+      "meta": {
+        "interval_sec": 1.0
+      },
+      "_hash": "9cee395528db0c50b7ebdc6a658342b94799b97f739fdfd4c0504780f184ab19"
+    }
+  ],
+  "_integrity": {
+    "algorithm": "SHA-256-CHAIN",
+    "chain_length": 15,
+    "head_hash": "9cee395528db0c50b7ebdc6a658342b94799b97f739fdfd4c0504780f184ab19",
+    "session_id": "f3cfbe40-48c4-4863-90f6-cda302854fed",
+    "note": "Per-event chained hash. Verify using spec §5.2."
+  }
+}

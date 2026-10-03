@@ -1,0 +1,45 @@
+# twff_copy 的环境依赖
+# ============================================================================
+#
+# 重要：本项目**不需要任何第三方 Python 包**，所以下面没有任何包名。
+#       文件存在的意义是记录版本要求与"为什么无限定"，而不是让你 pip install。
+#
+# 用法：
+#   python -m pip install -r requirements.txt
+#   ↑ 这条命令可以放心执行（不会有任何东西被安装），但它不是必需的。
+#
+# 已核对范围：twff_copy/ 下全部 9 个 .py 文件
+#   chainlog.py                    —— 核心工具
+#   test_diff.py                   —— 单元测试
+#   examples/tamper_demo.py        —— 篡改演示
+#   examples/rechain_demo.py       —— 重算链演示
+#   tests/5kb/*.py                 —— 5KB 实测脚本（4 个）
+# 全部只导入 Python 标准库：
+#   argparse copy datetime hashlib importlib json os pathlib
+#   shutil signal subprocess sys time uuid
+#
+# ---------------------------------------------------------------------------
+# 版本要求
+# ---------------------------------------------------------------------------
+# 需要 Python >= 3.10。原因：代码使用了 3.10 才支持的联合类型标注（`str | None`）。
+# 已实测可用：Python 3.11.17（Anaconda 的 mytest 环境）、3.12.14
+#
+# ---------------------------------------------------------------------------
+# 可选依赖（不装也能正常使用）
+# ---------------------------------------------------------------------------
+# TWFF 参考实现仓库（仅用于"跨实现校验"一步）
+#   位置：项目根目录的兄弟目录，即 encrypt_zac\twff\  （或历史上 zacc 下的副本）
+#   需要的文件：twff/spec/verification/verify_process_log.py
+#   作用：用它自带的校验器复验本工具产出的 audit.json，证明两者格式互通
+#   注意：这不是 Python 包，无法用 pip 安装；不存在时该项目只会少一项可选的交叉验证，
+#         核心功能（init / watch / announce / verify / show）完全不受影响。
+#   取得方式（若已在别处删掉，可重新克隆）：
+#     git clone https://github.com/Functional-Intelligence-Research-Lab/twff
+#
+# ---------------------------------------------------------------------------
+# 环境自检（不安装任何东西，30 秒确认环境可用）
+# ---------------------------------------------------------------------------
+#   python -c "import sys; print(sys.version)"      # 应 >= 3.10
+#   python test_diff.py                             # 应输出「通过 29 项，失败 0 项」
+#   python chainlog.py verify --log audit.json --file textfile.txt
+#                                                   # 应输出「✅ 完整 N 条事件，链未被篡改」

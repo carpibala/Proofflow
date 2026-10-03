@@ -1,0 +1,33 @@
+{
+  "documentId": "a0a8bcbd-70ca-47b4-b02a-acf9acbfdf82",
+  "baseVersion": 3,
+  "event": {
+    "operationId": "69921d50-563e-4842-a68e-6bb450905f5d",
+    "type": "PASTE",
+    "timestamp": "2026-10-03T14:00:00Z",
+    "aiResponseId": null,
+    "snippet": "AI in the classroom provides",
+    "insertedText": "AI in the classroom provides ",
+    "insertPosition": { "path": [0], "offset": 0 }
+  },
+  "contentJson": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "AI in the classroom provides ",
+            "sourceOperationId": "69921d50-563e-4842-a68e-6bb450905f5d"
+          },
+          {
+            "type": "text",
+            "marks": [{ "type": "bold" }],
+            "text": "personalized learning opportunities"
+          }
+        ]
+      }
+    ]
+  }
+}

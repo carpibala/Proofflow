@@ -1,0 +1,20 @@
+{
+  "documentId": "a0a8bcbd-70ca-47b4-b02a-acf9acbfdf82",
+  "baseVersion": 0,
+  "event": {
+    "operationId": "69921d50-563e-4842-a68e-6bb450905f5d",
+    "type": "MANUAL_EDIT",
+    "timestamp": "2026-10-03T05:30:00Z"
+  },
+  "contentJson": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "AI can support classroom learning." }
+        ]
+      }
+    ]
+  }
+}
