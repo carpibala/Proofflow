@@ -81,7 +81,7 @@ test("editor saves manual, paste and AI events and restores them after reload", 
   } finally { await browser.close(); }
 });
 
-test("manual typing records a sentence together and saves an unfinished sentence after a pause", async () => {
+test("manual typing records punctuation and saves unfinished text after a pause", async () => {
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
@@ -117,5 +117,37 @@ test("manual typing records a sentence together and saves an unfinished sentence
     await page.reload();
     await page.getByText("正文服务端版本 5").waitFor();
     assert.equal(await page.getByRole("textbox", { name: "文档正文" }).inputValue(), "Hello. More text pasted unsaved");
+  } finally { await browser.close(); }
+});
+
+test("each inserted punctuation mark records immediately, including Chinese punctuation", async () => {
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage();
+    await page.goto(base);
+    await page.getByText("正文服务端版本 0").waitFor();
+    const editor = page.getByRole("textbox", { name: "文档正文" });
+    await editor.pressSequentially("你好", { delay: 20 });
+    assert.equal(await page.locator(".timeline-item").count(), 0);
+
+    await editor.pressSequentially("，");
+    await page.getByText("正文服务端版本 1").waitFor({ timeout: 1500 });
+    await editor.pressSequentially("世界,");
+    await page.getByText("正文服务端版本 2").waitFor({ timeout: 1500 });
+    await editor.pressSequentially("!");
+    await page.getByText("正文服务端版本 3").waitFor({ timeout: 1500 });
+    assert.equal(await page.locator(".timeline-item").count(), 3);
+    const times = await page.locator(".timeline-item time").allTextContents();
+    assert.ok(times.every((time) => /\.\d{3}$/.test(time)), `Timeline should show milliseconds: ${times}`);
+
+    await editor.press("Backspace");
+    await page.waitForTimeout(250);
+    assert.equal(await page.locator(".timeline-item").count(), 3);
+    await editor.evaluate((input) => {
+      input.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+      input.value += "。";
+      input.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+    });
+    await page.getByText("正文服务端版本 4").waitFor({ timeout: 1500 });
   } finally { await browser.close(); }
 });

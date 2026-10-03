@@ -57,8 +57,12 @@ function isDraft(value: unknown): value is Draft {
   );
 }
 
-function finishesSentence(text: string, caret: number): boolean {
-  return /[。！？.!?\n]["'”’）\]]?$/.test(text.slice(0, caret));
+function insertedPunctuation(before: string, after: string): boolean {
+  let start = 0;
+  while (start < before.length && start < after.length && before[start] === after[start]) start++;
+  let end = 0;
+  while (end < before.length - start && end < after.length - start && before[before.length - end - 1] === after[after.length - end - 1]) end++;
+  return /[\p{P}\n]/u.test(after.slice(start, after.length - end));
 }
 
 function flushManualEdit(current: Draft): Draft {
@@ -212,12 +216,13 @@ export default function ProofFlowEditor() {
     void flush().catch(() => setSaveState("error")).finally(() => { saving.current = false; });
   }, [draft, loaded, retryToken]);
 
-  const recordManualEdit = (nextText: string, caret: number) => {
+  const recordManualEdit = (nextText: string) => {
     setDraft((current) => {
+      const beforeText = plainText(current.document);
       const nextDocument = reconcileText(current.document, nextText);
-      if (plainText(nextDocument) === plainText(current.document)) return current;
+      if (plainText(nextDocument) === beforeText) return current;
       const next = { ...current, document: nextDocument, pendingManual: true };
-      return finishesSentence(nextText, caret) ? flushManualEdit(next) : next;
+      return insertedPunctuation(beforeText, nextText) ? flushManualEdit(next) : next;
     });
   };
 
@@ -339,7 +344,7 @@ export default function ProofFlowEditor() {
                   const nextText = event.target.value;
                   if (compositionStart.current) {
                     setDraft((current) => ({ ...current, document: reconcileText(current.document, nextText) }));
-                  } else recordManualEdit(nextText, event.currentTarget.selectionStart);
+                  } else recordManualEdit(nextText);
                 }}
                 onCompositionStart={() => { compositionStart.current = draft.document; }}
                 onCompositionEnd={(event) => {
@@ -349,14 +354,10 @@ export default function ProofFlowEditor() {
                   const nextText = event.currentTarget.value;
                   const nextDocument = reconcileText(before, nextText);
                   if (plainText(nextDocument) === plainText(before)) return;
-                  setDraft((current) => ({
-                    ...current,
-                    document: nextDocument,
-                    pendingManual: true,
-                  }));
-                  if (finishesSentence(nextText, event.currentTarget.selectionStart)) {
-                    setDraft((current) => flushManualEdit(current));
-                  }
+                  setDraft((current) => {
+                    const next = { ...current, document: nextDocument, pendingManual: true };
+                    return insertedPunctuation(plainText(before), nextText) ? flushManualEdit(next) : next;
+                  });
                 }}
                 onBlur={() => setDraft((current) => flushManualEdit(current))}
                 onPaste={(event) => {
@@ -404,7 +405,7 @@ export default function ProofFlowEditor() {
                   onMouseLeave={() => setHoveredEventId(null)}
                 >
                   <span className={`timeline-node ${event.type.toLowerCase()}`} />
-                  <div className="timeline-content"><div className="timeline-meta"><strong>{eventLabel(event.type)}</strong><time dateTime={event.timestamp}>{new Date(event.timestamp).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time></div><p>{event.snippet}</p><code>{event.operationId.slice(0, 8)}</code></div>
+                  <div className="timeline-content"><div className="timeline-meta"><strong>{eventLabel(event.type)}</strong><time dateTime={event.timestamp}>{new Date(event.timestamp).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3 })}</time></div><p>{event.snippet}</p><code>{event.operationId.slice(0, 8)}</code></div>
                 </div>
               )) : <div className="timeline-empty">开始编辑后，这里会显示操作记录。</div>}
             </div>

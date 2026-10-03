@@ -96,7 +96,7 @@ Save rules:
 
 Expected errors: `400` malformed request; `401` unauthenticated; `403` unauthorized; `404` missing document; `409` stale version or conflicting operation ID; `422` unsupported editor JSON. The team should agree whether unauthorized document IDs are reported as `403` or `404` without exposing private documents.
 
-The current frontend queues edits FIFO per document, reuses `operationId` on retry, and uses each save acknowledgment's version as the next `baseVersion`. It groups manual input into one event at sentence-ending punctuation, blur, or after about two seconds of inactivity. Text being typed remains in the local draft until that event is queued and acknowledged. The certificate button is disabled because Finalize is not implemented. Future Finalize must explicitly flush pending manual input, wait for all saves, check the expected server version, and freeze a consistent document/event range.
+The current frontend queues edits FIFO per document, reuses `operationId` on retry, and uses each save acknowledgment's version as the next `baseVersion`. It groups manual input into one event when punctuation or a newline is inserted, on blur, or after about two seconds of inactivity. Text being typed remains in the local draft until that event is queued and acknowledged. The certificate button is disabled because Finalize is not implemented. Future Finalize must explicitly flush pending manual input, wait for all saves, check the expected server version, and freeze a consistent document/event range.
 
 ## Evidence and certificate format v1
 
