@@ -1,0 +1,176 @@
+{
+  "version": "0.2.0",
+  "session_id": "4fe37d20-a673-435f-90ca-061c2cc67269",
+  "user_id": "anon-f23781e6eef7",
+  "start_time": "2026-10-03T09:17:25Z",
+  "end_time": null,
+  "content_source": "textfile.txt",
+  "events": [
+    {
+      "timestamp": "2026-10-03T09:17:25Z",
+      "type": "chain_init",
+      "meta": {
+        "content_source": "textfile.txt"
+      },
+      "_hash": "02d72a88e022f40985485df2dc359299565993495105993427a28887b21a3dea"
+    },
+    {
+      "timestamp": "2026-10-03T09:17:25Z",
+      "type": "content_baseline",
+      "meta": {
+        "char_count": 1643,
+        "line_count": 12,
+        "byte_count": 4863,
+        "encoding": "utf-8-sig",
+        "content_sha256": "b89a59f57f71d1fb3bde17aff8cdeded4ca4ce0c3fb9791690745eb161af2c08",
+        "preview": "《可验证的创作过程》\\r\\n摘要：本文讨论创作过程的可验证记录。\\r\\n第1节。生成式人工智能正在改变知识生产的方式，写作、编程"
+      },
+      "_hash": "de86175787a859576e577d8dc290c57df9f9429e5d57c5f48c8e53a9e1599810"
+    },
+    {
+      "timestamp": "2026-10-03T09:17:25Z",
+      "type": "watch_start",
+      "meta": {
+        "interval_sec": 0.4
+      },
+      "_hash": "2c30c1b5a9ac897767a0c19c88ff2185f63f7cd845d07ed5e9d61be1e4e7d069"
+    },
+    {
+      "timestamp": "2026-10-03T09:17:29Z",
+      "type": "content_modified",
+      "meta": {
+        "char_count": 1644,
+        "line_count": 12,
+        "byte_count": 4866,
+        "encoding": "utf-8-sig",
+        "content_sha256": "7f73e9c62d7107c0ecfd333e4c46b08fabe53706acbda82819ca84bee7f20fa7",
+        "preview": "《可验证的创作过程》\\r\\n摘要：本文主张用过程证据替代事后检测。\\r\\n第1节。生成式人工智能正在改变知识生产的方式，写作、编",
+        "delta_chars": 1,
+        "delta_lines": 0,
+        "mode": "replace",
+        "removed": [
+          "讨论创作过程的可验证记录"
+        ],
+        "added": [
+          "主张用过程证据替代事后检测"
+        ],
+        "diff_truncated": false
+      },
+      "_hash": "b1b7a97355f092a16cdb02f5f711fc3f024835de7b3688c5e3c93b7f6a7f6e04"
+    },
+    {
+      "timestamp": "2026-10-03T09:17:30Z",
+      "type": "content_modified",
+      "meta": {
+        "char_count": 1653,
+        "line_count": 12,
+        "byte_count": 4893,
+        "encoding": "utf-8-sig",
+        "content_sha256": "938082ed9f0ab746bb7adc319bd85dd36149d931b534b5593517d6a53c067dcd",
+        "preview": "《可验证的创作过程》\\r\\n摘要：本文主张用过程证据替代事后检测。\\r\\n第1节。生成式人工智能正在改变知识生产的方式，写作、编",
+        "delta_chars": 9,
+        "delta_lines": 0,
+        "mode": "add",
+        "removed": [],
+        "added": [
+          "，且应当可独立复算"
+        ],
+        "diff_truncated": false
+      },
+      "_hash": "89325e3d596543129bf811eab550d09590039ff04f8421b3a91cb10960edda80"
+    },
+    {
+      "timestamp": "2026-10-03T09:17:31Z",
+      "type": "content_modified",
+      "meta": {
+        "char_count": 1476,
+        "line_count": 11,
+        "byte_count": 4368,
+        "encoding": "utf-8-sig",
+        "content_sha256": "c9b4456bc5948b3c35d0cee8b665dc8a3e6b4478811b901948c64e57d7344f9d",
+        "preview": "《可验证的创作过程》\\r\\n摘要：本文主张用过程证据替代事后检测。\\r\\n第1节。生成式人工智能正在改变知识生产的方式，写作、编",
+        "delta_chars": -177,
+        "delta_lines": -1,
+        "mode": "del",
+        "removed": [
+          "5节。生成式人工智能正在改变知识生产的方式，写作、编程与设计领域都出现了人机协作的常态。学校与雇主因此面临一个新的判定难题：当最终交付物无法自证其创作过程时，任何关于原创性的结论都只能建立在猜测之上。本文认为，与…<中间省略 17 字符>…如在创作发生的当下就记录可验证的过程证据，包括人工输入的时段、外部内容的引入、以及模型辅助的具体范围。\r\n第"
+        ],
+        "added": [],
+        "diff_truncated": true
+      },
+      "_hash": "8c70ff6890346b9c45ba2400d6109eac315f061535387b0b511676614b79d82a"
+    },
+    {
+      "timestamp": "2026-10-03T09:17:32Z",
+      "type": "content_modified",
+      "meta": {
+        "char_count": 1509,
+        "line_count": 12,
+        "byte_count": 4461,
+        "encoding": "utf-8-sig",
+        "content_sha256": "423f463c95f1b1f0e3cc8adafaa42e2b1cb6ea1102bafd6395bec718fcfda9c2",
+        "preview": "《可验证的创作过程》\\r\\n摘要：本文主张用过程证据替代事后检测。\\r\\n第1节。生成式人工智能正在改变知识生产的方式，写作、编",
+        "delta_chars": 33,
+        "delta_lines": 1,
+        "mode": "add",
+        "removed": [],
+        "added": [
+          "5节之二。插入段落：记录必须与正文绑定的哈希，否则可被替换。\r\n第"
+        ],
+        "diff_truncated": false
+      },
+      "_hash": "9d538d321ace13aefd75e94f617c73dd8127b6603e7e737c53a4bc55caf77846"
+    },
+    {
+      "timestamp": "2026-10-03T09:17:33Z",
+      "type": "content_modified",
+      "meta": {
+        "char_count": 1513,
+        "line_count": 12,
+        "byte_count": 4473,
+        "encoding": "utf-8-sig",
+        "content_sha256": "851034a152cb0f9990c6f66d37de9b264f176bacb240fadfbf8b02428c04bc32",
+        "preview": "《可验证的创作过程》\\r\\n摘要：本文主张用过程证据替代事后检测。\\r\\n第1节。生成式人工智能正在改变知识生产的方式，写作、编",
+        "delta_chars": 4,
+        "delta_lines": 0,
+        "mode": "add",
+        "removed": [],
+        "added": [
+          "（修订）"
+        ],
+        "diff_truncated": false
+      },
+      "_hash": "38f35dd279221ac29492232cd5c0c4fc170b815a166d3b3b421d0c051a49d630"
+    },
+    {
+      "timestamp": "2026-10-03T09:17:35Z",
+      "type": "content_modified",
+      "meta": {
+        "char_count": 942,
+        "line_count": 2,
+        "byte_count": 2822,
+        "encoding": "utf-8-sig",
+        "content_sha256": "3449d5f55bcf120e09bdc5f0b6a6048b86dce5d7f3ee855e883f9ace82293ee4",
+        "preview": "整篇重写后的新正文。\\r\\n这是用于测试超长片段截断的填充文字，反复出现以便把改动区撑大。这是用于测试超长片段截断的填充文字",
+        "delta_chars": -571,
+        "delta_lines": -10,
+        "mode": "replace",
+        "removed": [
+          "《可验证的创作过程》\r\n摘要：本文主张用过程证据替代事后检测。\r\n第1节。生成式人工智能正在改变知识生产的方式，写作、编程与设计领域都出现了人机协作的常态。学校与雇主因此面临一个新的判定难题：当最终交付物无法自证…<中间省略 1353 字符>…入的时段、外部内容的引入、以及模型辅助的具体范围。\r\n结论：过程证据比事后猜测更可靠，且应当可独立复算。\r\n"
+        ],
+        "added": [
+          "整篇重写后的新正文。\r\n这是用于测试超长片段截断的填充文字，反复出现以便把改动区撑大。这是用于测试超长片段截断的填充文字，反复出现以便把改动区撑大。这是用于测试超长片段截断的填充文字，反复出现以便把改动区撑大。这…<中间省略 782 字符>…片段截断的填充文字，反复出现以便把改动区撑大。这是用于测试超长片段截断的填充文字，反复出现以便把改动区撑大。"
+        ],
+        "diff_truncated": true
+      },
+      "_hash": "5ba4e76f1e99664c03d306149c368e0433815bbe573f105e5002013bd4da9fde"
+    }
+  ],
+  "_integrity": {
+    "algorithm": "SHA-256-CHAIN",
+    "chain_length": 9,
+    "head_hash": "5ba4e76f1e99664c03d306149c368e0433815bbe573f105e5002013bd4da9fde",
+    "session_id": "4fe37d20-a673-435f-90ca-061c2cc67269",
+    "note": "Per-event chained hash. Verify using spec §5.2."
+  }
+}

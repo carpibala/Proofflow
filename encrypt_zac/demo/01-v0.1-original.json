@@ -1,0 +1,85 @@
+{
+  "version": "0.1.0",
+  "session_id": "3f2a1b4c-8e9d-4f7a-b2c1-1a2b3c4d5e6f",
+  "user_id": "anon-7f3a2c1b9d4e",
+  "start_time": "2026-02-16T09:00:00Z",
+  "end_time": "2026-02-16T09:47:22Z",
+  "content_source": "content/document.xhtml",
+  "events": [
+    {
+      "timestamp": "2026-02-16T09:00:01Z",
+      "type": "session_start",
+      "meta": {}
+    },
+    {
+      "timestamp": "2026-02-16T09:01:15Z",
+      "type": "edit",
+      "meta": {
+        "position_start": 0,
+        "position_end": 280,
+        "source": "human"
+      }
+    },
+    {
+      "timestamp": "2026-02-16T09:05:20Z",
+      "type": "paste",
+      "meta": {
+        "char_count": 142,
+        "source": "external",
+        "position_start": 280,
+        "position_end": 422,
+        "output_preview": "The rapid advancement of artificial intelligence has transformed many aspects"
+      }
+    },
+    {
+      "timestamp": "2026-02-16T09:10:45Z",
+      "type": "ai_interaction",
+      "meta": {
+        "interaction_type": "paraphrase",
+        "model": "gpt-4o",
+        "input_preview": "make this more formal",
+        "output_preview": "subsequently, the implementation of neural architectures...",
+        "output_length": 320,
+        "position_start": 422,
+        "position_end": 742,
+        "acceptance": "partially_accepted"
+      }
+    },
+    {
+      "timestamp": "2026-02-16T09:15:00Z",
+      "type": "edit",
+      "meta": {
+        "position_start": 742,
+        "position_end": 980,
+        "source": "human"
+      }
+    },
+    {
+      "timestamp": "2026-02-16T09:30:00Z",
+      "type": "checkpoint",
+      "meta": {
+        "char_count_total": 980,
+        "word_count_total": 162,
+        "position": 980
+      }
+    },
+    {
+      "timestamp": "2026-02-16T09:35:14Z",
+      "type": "focus_change",
+      "meta": {
+        "duration_ms": 47000
+      }
+    },
+    {
+      "timestamp": "2026-02-16T09:47:22Z",
+      "type": "session_end",
+      "meta": {}
+    }
+  ],
+  "_integrity": {
+    "algorithm": "SHA-256",
+    "salt": "session_id",
+    "hash": "a3f8e2d14b9c07e563a1f2b4c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7",
+    "note": "Hash of the events array as compact JSON concatenated with session_id."
+  }
+}

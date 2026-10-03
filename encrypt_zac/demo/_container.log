@@ -1,0 +1,14 @@
+﻿  built: full.twff  (1853 bytes)
+  built: audit.twff  (2300 bytes)
+  built: research-only.process-log.json
+  built: swap.twff  (1854 bytes)
+
+  记录侧校验（两个容器里的 process-log.json）:
+    full.twff    哈希链: ✅ 完好  Log intact — 8 events verified.
+    swap.twff    哈希链: ✅ 完好  Log intact — 8 events verified.
+
+  正文 SHA-256:
+    full.twff : 9eeba655217da995a7c9cd94de577d3821428bf72d26d0f41844108c7ff91848
+    swap.twff : c767bf488ea5dfd25a538538411222ab666c5d21f94291d69508b88cda5be51c
+    两篇正文不同: True
+    记录里是否存了正文 hash: NO ← 这就是缺口

@@ -1,0 +1,8 @@
+{
+  "session_id": "4d5def65-e5b1-4237-ac61-99ba3ecd9251",
+  "content_source": "textfile.txt",
+  "head_hash": "b47b30fe6dff3cc8bbb1553946cf63cfae5fa740145ca1f43026b288613fe33e",
+  "chain_length": 1,
+  "announced_at": "2026-10-03T09:17:40Z",
+  "note": "链外锚点。篡改后重算链会使 head_hash 变化，与本文件比对即可发现。"
+}
