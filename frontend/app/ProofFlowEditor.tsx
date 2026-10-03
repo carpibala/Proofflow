@@ -30,10 +30,12 @@ type Draft = {
   title: string; document: EditorDocument; events: DraftEvent[];
   documentId?: string; serverVersion?: number; savedEventCount?: number;
   demoAiResponse?: DemoResponse;
+  pendingManual?: boolean;
 };
 
 const storageKey = "proofflow-local-draft-v1";
 const sampleResponseId = "local-demo-response-v1";
+const manualIdleMs = 2000;
 
 const newDraft = (): Draft => ({ title: "无标题文档", document: emptyDocument(), events: [] });
 
@@ -50,8 +52,29 @@ function isDraft(value: unknown): value is Draft {
         Array.isArray(paragraph.content) &&
         paragraph.content.every((node) => node.type === "text" && typeof node.text === "string"),
     ) &&
-    Array.isArray(draft.events)
+    Array.isArray(draft.events) &&
+    (draft.pendingManual === undefined || typeof draft.pendingManual === "boolean")
   );
+}
+
+function finishesSentence(text: string, caret: number): boolean {
+  return /[。！？.!?\n]["'”’）\]]?$/.test(text.slice(0, caret));
+}
+
+function flushManualEdit(current: Draft): Draft {
+  if (!current.pendingManual) return current;
+  const text = plainText(current.document);
+  return {
+    ...current,
+    pendingManual: false,
+    events: [...current.events, {
+      operationId: crypto.randomUUID(),
+      type: "MANUAL_EDIT",
+      timestamp: new Date().toISOString(),
+      snippet: text.slice(0, 72) || "文字已删除",
+      contentAfter: current.document,
+    }],
+  };
 }
 
 function eventLabel(type: EventType): string {
@@ -98,6 +121,26 @@ export default function ProofFlowEditor() {
   }, [draft, loaded]);
 
   useEffect(() => {
+    if (!loaded || !draft.pendingManual) return;
+    const timeout = window.setTimeout(() => setDraft((current) => flushManualEdit(current)), manualIdleMs);
+    return () => window.clearTimeout(timeout);
+  }, [draft.document, draft.pendingManual, loaded]);
+
+  useEffect(() => {
+    if (draft.pendingManual) queueMicrotask(() => setSaveState("saving"));
+  }, [draft.pendingManual]);
+
+  useEffect(() => {
+    const savePendingOnExit = () => {
+      if (draftRef.current.pendingManual) {
+        localStorage.setItem(storageKey, JSON.stringify(flushManualEdit(draftRef.current)));
+      }
+    };
+    window.addEventListener("pagehide", savePendingOnExit);
+    return () => window.removeEventListener("pagehide", savePendingOnExit);
+  }, []);
+
+  useEffect(() => {
     if (!loaded || !draft.documentId) return;
     let active = true;
     fetch(`/api/documents/${draft.documentId}`, { cache: "no-store" })
@@ -138,7 +181,7 @@ export default function ProofFlowEditor() {
           ? { ...event, aiResponseId: created.demoAiResponse.id }
           : event),
       }));
-      setSaveState("saved");
+      if (!draftRef.current.pendingManual) setSaveState("saved");
     }).catch(() => { creating.current = false; setSaveState("error"); });
   }, [draft, loaded, retryToken]);
 
@@ -164,32 +207,28 @@ export default function ProofFlowEditor() {
         setDraft((latest) => ({ ...latest, serverVersion: saved.version, savedEventCount: index + 1 }));
         draftRef.current = { ...draftRef.current, serverVersion: saved.version, savedEventCount: index + 1 };
       }
-      setSaveState("saved");
+      if (!draftRef.current.pendingManual) setSaveState("saved");
     };
     void flush().catch(() => setSaveState("error")).finally(() => { saving.current = false; });
   }, [draft, loaded, retryToken]);
 
-  const recordManualEdit = (nextText: string) => {
+  const recordManualEdit = (nextText: string, caret: number) => {
     setDraft((current) => {
       const nextDocument = reconcileText(current.document, nextText);
       if (plainText(nextDocument) === plainText(current.document)) return current;
-      const event: DraftEvent = {
-        operationId: crypto.randomUUID(),
-        type: "MANUAL_EDIT",
-        timestamp: new Date().toISOString(),
-        snippet: nextText.slice(0, 72) || "文字已删除",
-        contentAfter: nextDocument,
-      };
-      return { ...current, document: nextDocument, events: [...current.events, event] };
+      const next = { ...current, document: nextDocument, pendingManual: true };
+      return finishesSentence(nextText, caret) ? flushManualEdit(next) : next;
     });
   };
 
   const insertText = (type: "PASTE" | "AI_INSERT", insertedText: string) => {
     if (!insertedText) return;
+    setSaveState("saving");
     const input = textareaRef.current;
     const start = input?.selectionStart ?? plainText(draft.document).length;
     const end = input?.selectionEnd ?? start;
     setDraft((current) => {
+      current = flushManualEdit(current);
       const operationId = crypto.randomUUID();
       const nextDocument = replaceRange(current.document, start, end, insertedText, {
         sourceOperationId: operationId,
@@ -217,7 +256,9 @@ export default function ProofFlowEditor() {
   const handleBold = () => {
     const input = textareaRef.current;
     if (!input || input.selectionStart === input.selectionEnd) return;
+    setSaveState("saving");
     setDraft((current) => {
+      current = flushManualEdit(current);
       const nextDocument = toggleBold(current.document, input.selectionStart, input.selectionEnd);
       return {
         ...current,
@@ -298,7 +339,7 @@ export default function ProofFlowEditor() {
                   const nextText = event.target.value;
                   if (compositionStart.current) {
                     setDraft((current) => ({ ...current, document: reconcileText(current.document, nextText) }));
-                  } else recordManualEdit(nextText);
+                  } else recordManualEdit(nextText, event.currentTarget.selectionStart);
                 }}
                 onCompositionStart={() => { compositionStart.current = draft.document; }}
                 onCompositionEnd={(event) => {
@@ -307,15 +348,17 @@ export default function ProofFlowEditor() {
                   if (!before) return;
                   const nextText = event.currentTarget.value;
                   const nextDocument = reconcileText(before, nextText);
+                  if (plainText(nextDocument) === plainText(before)) return;
                   setDraft((current) => ({
                     ...current,
                     document: nextDocument,
-                    events: [...current.events, {
-                      operationId: crypto.randomUUID(), type: "MANUAL_EDIT", timestamp: new Date().toISOString(),
-                      snippet: nextText.slice(0, 72) || "文字已删除", contentAfter: nextDocument,
-                    }],
+                    pendingManual: true,
                   }));
+                  if (finishesSentence(nextText, event.currentTarget.selectionStart)) {
+                    setDraft((current) => flushManualEdit(current));
+                  }
                 }}
+                onBlur={() => setDraft((current) => flushManualEdit(current))}
                 onPaste={(event) => {
                   event.preventDefault();
                   insertText("PASTE", event.clipboardData.getData("text/plain"));

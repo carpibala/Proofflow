@@ -80,3 +80,42 @@ test("editor saves manual, paste and AI events and restores them after reload", 
     assert.match(await editor.inputValue(), /中文$/);
   } finally { await browser.close(); }
 });
+
+test("manual typing records a sentence together and saves an unfinished sentence after a pause", async () => {
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage();
+    await page.goto(base);
+    await page.getByText("正文服务端版本 0").waitFor();
+    const editor = page.getByRole("textbox", { name: "文档正文" });
+    await editor.pressSequentially("Hello", { delay: 20 });
+    await page.waitForTimeout(250);
+    assert.equal(await page.locator(".timeline-item").count(), 0);
+    assert.equal(await page.getByText("正文服务端版本 0").count(), 1);
+
+    await editor.press(".");
+    await page.getByText("正文服务端版本 1").waitFor();
+    assert.equal(await page.locator(".timeline-item").count(), 1);
+
+    await editor.pressSequentially(" More", { delay: 20 });
+    await page.getByText("正文服务端版本 2").waitFor();
+    assert.equal(await page.locator(".timeline-item").count(), 2);
+    assert.equal(await editor.inputValue(), "Hello. More");
+
+    await editor.pressSequentially(" text", { delay: 20 });
+    await editor.evaluate((input) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", " pasted");
+      input.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    });
+    await page.getByText("正文服务端版本 4").waitFor();
+    const documentId = await page.evaluate(() => JSON.parse(localStorage.getItem("proofflow-local-draft-v1")).documentId);
+    const history = await (await page.request.get(`${base}/api/documents/${documentId}/events`)).json();
+    assert.deepEqual(history.events.map((event) => event.type), ["MANUAL_EDIT", "MANUAL_EDIT", "MANUAL_EDIT", "PASTE"]);
+
+    await editor.pressSequentially(" unsaved", { delay: 20 });
+    await page.reload();
+    await page.getByText("正文服务端版本 5").waitFor();
+    assert.equal(await page.getByRole("textbox", { name: "文档正文" }).inputValue(), "Hello. More text pasted unsaved");
+  } finally { await browser.close(); }
+});
