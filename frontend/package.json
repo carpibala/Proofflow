@@ -2,7 +2,9 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -11,7 +13,9 @@
     "test": "node --experimental-strip-types --test tests/editor-document.test.mjs tests/change-preview.test.mjs tests/proof-format.test.mjs",
     "test:integration": "node --experimental-strip-types --test tests/api.integration.test.mjs",
     "test:ui": "node --test tests/ui.smoke.test.mjs",
-    "demo:broken-chain": "node --experimental-strip-types scripts/demo-broken-chain.mjs"
+    "demo:broken-chain": "node --experimental-strip-types scripts/demo-broken-chain.mjs",
+    "verify:bundle": "node --experimental-strip-types scripts/verify-bundle.mjs",
+    "test:auth": "node --test tests/auth.integration.test.mjs"
   },
   "dependencies": {
     "diff": "^9.0.0",

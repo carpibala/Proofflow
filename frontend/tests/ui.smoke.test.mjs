@@ -25,11 +25,21 @@ async function launchBrowser() {
   throw new Error(`No supported browser found. Install Edge, Chrome, or Playwright Chromium, or set PROOFFLOW_BROWSER_PATH.\n${errors.join("\n")}`);
 }
 
+async function openAuthenticated(page) {
+  const result = await page.request.post(`${base}/api/auth/register`, { data: {
+    username: `ui_${randomUUID().replaceAll("-", "").slice(0,20)}`, password: "UI-password-123!",
+  } });
+  assert.equal(result.status(), 201);
+  await page.goto(base);
+  await page.getByRole("textbox", { name: "文档正文" }).waitFor();
+  await page.getByText("正文服务端版本 0").waitFor();
+}
+
 test("editor saves manual and paste events and restores them after reload", async () => {
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
-    await page.goto(base);
+    await openAuthenticated(page);
     const editor = page.getByRole("textbox", { name: "文档正文" });
     await page.getByText("正文已保存 · 未验证").waitFor();
     await editor.fill("Hello ");
@@ -73,7 +83,7 @@ test("editor saves manual and paste events and restores them after reload", asyn
     assert.equal(json.serverVersion, 2);
     assert.equal(json.events.length, 2);
     assert.equal(json.events[1].insertedText, "pasted ");
-    assert.deepEqual(json.aiResponses, []);
+    assert.equal("aiResponses" in json, false);
 
     mkdirSync(output, { recursive: true });
     await page.screenshot({ path: join(output, "proofflow-desktop.png"), fullPage: true });
@@ -103,10 +113,10 @@ test("Chinese and English UI switching persists without changing document conten
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-    await page.goto(base);
+    await openAuthenticated(page);
     await page.getByText("正文服务端版本 0").waitFor();
     assert.equal(await page.locator(".assistant-panel, .editor-toolbar").count(), 0);
-    assert.equal(await page.getByRole("button", { name: "生成证书报告" }).isDisabled(), false);
+    assert.equal(await page.getByRole("button", { name: "查看证据报告" }).isDisabled(), false);
     await page.getByRole("group", { name: "界面语言" }).getByRole("button", { name: "EN" }).click();
     assert.equal(await page.evaluate(() => document.documentElement.lang), "en");
     assert.equal(await page.getByRole("textbox", { name: "Document title" }).getAttribute("placeholder"), "Untitled document");
@@ -153,7 +163,7 @@ test("manual typing records punctuation and saves unfinished text after a pause"
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
-    await page.goto(base);
+    await openAuthenticated(page);
     await page.getByText("正文服务端版本 0").waitFor();
     const editor = page.getByRole("textbox", { name: "文档正文" });
     await editor.pressSequentially("Hello", { delay: 20 });
@@ -177,7 +187,7 @@ test("manual typing records punctuation and saves unfinished text after a pause"
       input.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
     });
     await page.getByText("正文服务端版本 4").waitFor();
-    const documentId = await page.evaluate(() => JSON.parse(localStorage.getItem("proofflow-local-draft-v1")).documentId);
+    const documentId = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find(key => key.startsWith("proofflow-local-draft-v2:")))).documentId);
     const history = await (await page.request.get(`${base}/api/documents/${documentId}/events`)).json();
     assert.deepEqual(history.events.map((event) => event.type), ["MANUAL_EDIT", "MANUAL_EDIT", "MANUAL_EDIT", "PASTE"]);
 
@@ -192,7 +202,7 @@ test("manual changes in a long document show bounded highlighted context in both
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-    await page.goto(base);
+    await openAuthenticated(page);
     await page.getByText("正文服务端版本 0").waitFor();
     const editor = page.getByRole("textbox", { name: "文档正文" });
     const before = `${"Intro sentence. ".repeat(20)}Target old phrase. Follow-up sentence. ${"Tail sentence. ".repeat(20)}`;
@@ -227,7 +237,7 @@ test("a long-document paste shows bounded context and the full pasted selection"
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-    await page.goto(base);
+    await openAuthenticated(page);
     await page.getByText("正文服务端版本 0").waitFor();
     const editor = page.getByRole("textbox", { name: "文档正文" });
     const before = `${"Intro sentence. ".repeat(20)}Target old phrase. ${"Tail sentence. ".repeat(20)}`;
@@ -269,7 +279,7 @@ test("each inserted punctuation mark records immediately, including Chinese punc
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
-    await page.goto(base);
+    await openAuthenticated(page);
     await page.getByText("正文服务端版本 0").waitFor();
     const editor = page.getByRole("textbox", { name: "文档正文" });
     await editor.pressSequentially("你好", { delay: 20 });
@@ -303,10 +313,10 @@ test("a document missing from this server shows a useful error without deleting 
     const page = await browser.newPage();
     const documentId = randomUUID();
     const operationId = randomUUID();
-    await page.goto(base);
+    await openAuthenticated(page);
     await page.evaluate(({ documentId, operationId }) => {
       const document = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "local work" }] }] };
-      localStorage.setItem("proofflow-local-draft-v1", JSON.stringify({
+      localStorage.setItem(Object.keys(localStorage).find(key => key.startsWith("proofflow-local-draft-v2:")), JSON.stringify({
         title: "Local draft", document, documentId, serverVersion: 0, savedEventCount: 0,
         events: [{ operationId, type: "MANUAL_EDIT", timestamp: new Date().toISOString(), snippet: "local work", contentAfter: document }],
       }));
@@ -318,7 +328,7 @@ test("a document missing from this server shows a useful error without deleting 
     await page.reload();
     await page.waitForFunction(() => document.querySelector('textarea[aria-label="文档正文"]')?.value === "local work");
     assert.equal(await page.getByRole("textbox", { name: "文档正文" }).inputValue(), "local work");
-    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("proofflow-local-draft-v1")).documentId), documentId);
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find(key => key.startsWith("proofflow-local-draft-v2:")))).documentId), documentId);
   } finally { await browser.close(); }
 });
 
@@ -329,7 +339,7 @@ test("report counts saved additions, deletions and pastes, then warns on a broke
   let originalHash;
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-    await page.goto(base);
+    await openAuthenticated(page);
     await page.getByText("正文服务端版本 0").waitFor();
     const editor = page.getByRole("textbox", { name: "文档正文" });
     await editor.fill("Hello world.");
@@ -347,7 +357,7 @@ test("report counts saved additions, deletions and pastes, then warns on a broke
     await editor.blur();
     await page.getByText("正文服务端版本 3").waitFor();
 
-    await page.getByRole("button", { name: "生成证书报告" }).click();
+    await page.getByRole("button", { name: "查看证据报告" }).click();
     await page.getByRole("heading", { name: "创作证据报告" }).waitFor();
     await page.getByText("内部哈希链一致").waitFor();
     assert.deepEqual(await page.locator(".report-metric strong").allTextContents(), ["2", "1", "1"]);
@@ -356,7 +366,7 @@ test("report counts saved additions, deletions and pastes, then warns on a broke
     await page.screenshot({ path: join(output, "report-valid-desktop.png"), fullPage: true });
 
     const id = new URL(page.url()).pathname.split("/").at(-1);
-    const path = join(output, "proofflow.sqlite");
+    const path = join(process.env.PROOFFLOW_DATA_DIR ?? output, "proofflow.sqlite");
     if (!existsSync(path)) return context.skip("The target server does not use this local test database");
     connection = new DatabaseSync(path);
     const row = connection.prepare("SELECT id, previous_hash FROM events WHERE document_id = ? AND version = 2").get(id);
@@ -368,6 +378,7 @@ test("report counts saved additions, deletions and pastes, then warns on a broke
     await page.getByRole("alert").getByText("警告：哈希链校验失败").waitFor();
     await page.getByText(/BROKEN_EVENT_CHAIN/).waitFor();
     assert.equal(await page.locator(".report-banner-error").count(), 1);
+    assert.equal(await page.getByRole("button", { name: "冻结最终版本" }).isDisabled(), true);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({ path: join(output, "report-broken-mobile.png"), fullPage: true });
@@ -382,4 +393,72 @@ test("report counts saved additions, deletions and pastes, then warns on a broke
     }
     await browser.close();
   }
+});
+
+test("report freezes the latest edit, downloads evidence, and returns to a read-only editor", async () => {
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, acceptDownloads: true });
+    await openAuthenticated(page);
+    await page.getByText("正文服务端版本 0").waitFor();
+    await page.getByRole("textbox", { name: "文档标题" }).fill("最终测试文档");
+    await page.getByRole("textbox", { name: "文档正文" }).fill("Final edit without a pause");
+    await page.getByRole("button", { name: "查看证据报告" }).click();
+    await page.getByRole("heading", { name: "创作证据报告" }).waitFor();
+    await page.getByText("内部哈希链一致").waitFor();
+    assert.deepEqual(await page.locator(".report-metric strong").allTextContents(), ["1", "0", "0"]);
+    await page.getByRole("button", { name: "冻结最终版本" }).click();
+    await page.getByRole("dialog", { name: "确认冻结文档？" }).getByRole("button", { name: "确认冻结" }).click();
+    await page.getByRole("button", { name: "下载证据包" }).waitFor();
+    await page.getByText(/已冻结 ·/).waitFor();
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "下载证据包" }).click();
+    const downloaded = await downloadPromise;
+    const bundle = JSON.parse(readFileSync(await downloaded.path(), "utf8"));
+    assert.equal(bundle.kind, "proof-flow-evidence");
+    assert.equal(bundle.manifest.title, "最终测试文档");
+    assert.equal(bundle.manifest.finalVersion, 1);
+    assert.equal(bundle.events.length, 1);
+    assert.equal(bundle.contentJson.content[0].content[0].text, "Final edit without a pause");
+    mkdirSync(output, { recursive: true });
+    await page.screenshot({ path: join(output, "report-frozen-desktop.png"), fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    const dimensions = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, viewport: innerWidth }));
+    assert.ok(dimensions.scroll <= dimensions.viewport, `Frozen report overflows on mobile: ${JSON.stringify(dimensions)}`);
+    await page.screenshot({ path: join(output, "report-frozen-mobile.png"), fullPage: true });
+    await page.getByRole("link", { name: "返回编辑器" }).click();
+    await page.getByText("最终版本已冻结").waitFor();
+    assert.equal(await page.getByRole("textbox", { name: "文档正文" }).isDisabled(), true);
+    assert.equal(await page.getByRole("textbox", { name: "文档标题" }).isDisabled(), true);
+  } finally { await browser.close(); }
+});
+
+test("register and login forms restore backend content in a fresh browser context", async () => {
+  const browser = await launchBrowser();
+  try {
+    const username = `form_${randomUUID().replaceAll('-', '').slice(0,20)}`;
+    const password = 'Form-password-123!';
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.goto(base);
+    await page.getByRole('button', { name: '注册', exact: true }).click();
+    await page.getByLabel('用户名', { exact:true }).fill(username);
+    await page.getByLabel('密码', { exact:true }).fill(password);
+    await page.getByLabel('确认密码', { exact:true }).fill(password);
+    await page.getByRole('button', { name:'注册并登录', exact:true }).click();
+    await page.getByText('正文服务端版本 0').waitFor();
+    await page.getByRole('textbox', { name:'文档正文' }).fill('Backend account restore.');
+    await page.getByText('正文服务端版本 1').waitFor();
+    await page.getByRole('button', { name:'退出登录', exact:true }).click();
+    await page.getByRole('heading', { name:'欢迎回来' }).waitFor();
+    const fresh = await browser.newContext();
+    const second = await fresh.newPage();
+    await second.goto(base);
+    await second.getByLabel('用户名', { exact:true }).fill(username);
+    await second.getByLabel('密码', { exact:true }).fill(password);
+    await second.getByRole('button', { name:'登录', exact:true }).last().click();
+    await second.getByText('正文服务端版本 1').waitFor();
+    assert.equal(await second.getByRole('textbox', { name:'文档正文' }).inputValue(), 'Backend account restore.');
+    await fresh.close(); await context.close();
+  } finally { await browser.close(); }
 });

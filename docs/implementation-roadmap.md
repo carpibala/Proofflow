@@ -1,5 +1,7 @@
 # ProofFlow 从当前版本到最终演示的实施路线图
 
+> **历史路线图，已不再代表当前计划。** 团队已取消 AI、证书、数字签名和公钥功能；冻结与证据包已实现。当前范围和剩余风险见 [当前证据契约](current-evidence-contract.md) 与 [项目 README](../README.md)。
+
 更新日期：2026-10-04
 适用范围：成员三（Backend / Provenance Engine）与成员一（Product Lead / Integration / Pitch）由同一人负责的情况。
 

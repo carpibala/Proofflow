@@ -2,18 +2,20 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { emptyDocument, replaceRange } from "../lib/editor-document.ts";
 
 const action = process.argv[2] ?? "prepare";
 const documentId = action === "tamper" ? process.argv[3] : null;
 const base = ((action === "tamper" ? process.argv[4] : process.argv[3]) ?? "http://127.0.0.1:3002").replace(/\/$/, "");
-const databasePath = fileURLToPath(new URL("../data/proofflow.sqlite", import.meta.url));
+const databasePath = process.env.PROOFFLOW_DATA_DIR ? join(process.env.PROOFFLOW_DATA_DIR, "proofflow.sqlite") : fileURLToPath(new URL("../data/proofflow.sqlite", import.meta.url));
+let cookie = "";
 const demoTitle = "Hash chain demonstration";
 
 async function api(path, method = "GET", body) {
   const response = await fetch(`${base}${path}`, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: { Cookie: cookie, ...(body ? { "Content-Type": "application/json" } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   const result = await response.json();
@@ -51,12 +53,13 @@ async function prepare() {
   version = paste.version;
   content = pasteContent;
   await save({ type: "MANUAL_EDIT", snippet: "Removed world" }, replaceRange(content, 6, 11, ""));
+  await api(`/api/documents/${id}/finalize`, "POST", { expectedVersion: version });
 
   const before = await api(`/api/documents/${id}/verify`);
   if (!before.valid) throw new Error(`Expected a valid chain before the demonstration: ${JSON.stringify(before)}`);
 
   console.log(`Demo document ID: ${id}`);
-  console.log(`Open this valid report: ${base}/report/${id}`);
+  console.log(`Open this frozen report and download its evidence bundle: ${base}/report/${id}`);
   console.log(`Verification: valid=${before.valid}, checked=${before.checkedEvents}`);
   console.log(`To break this demo's link: npm run demo:broken-chain -- tamper ${id} ${base}`);
 }
@@ -92,6 +95,10 @@ async function tamper() {
 }
 
 async function main() {
+  if (!process.env.PROOFFLOW_USERNAME || !process.env.PROOFFLOW_PASSWORD) throw new Error("Set PROOFFLOW_USERNAME and PROOFFLOW_PASSWORD to an existing account first.");
+  const login = await fetch(`${base}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: process.env.PROOFFLOW_USERNAME, password: process.env.PROOFFLOW_PASSWORD }) });
+  if (!login.ok) throw new Error(`Login failed: HTTP ${login.status}`);
+  cookie = login.headers.get("set-cookie").split(";")[0];
   if (!existsSync(databasePath)) throw new Error(`Local database not found: ${databasePath}. Start this worktree's dev server first.`);
   if (action === "prepare") return prepare();
   if (action === "tamper") return tamper();
