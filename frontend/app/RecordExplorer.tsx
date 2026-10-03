@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { RotateCw, Search, ShieldCheck } from "lucide-react";
-import { plainText, type EditorDocument } from "@/lib/editor-document";
+import { emptyDocument, plainText, type EditorDocument } from "@/lib/editor-document";
+import ChangePreview from "./ChangePreview";
 
 type SavedEvent = {
   id: string;
@@ -80,6 +81,10 @@ export default function RecordExplorer({ documentId, savedEventCount, pendingCou
     }));
   }, [records]);
 
+  const previousContent = useMemo(() => new Map(records.map((record, index) => [
+    record.id, records[index - 1]?.contentAfter ?? emptyDocument(),
+  ] as const)), [records]);
+
   const verify = async () => {
     if (!documentId) return;
     setVerifying(true);
@@ -118,7 +123,7 @@ export default function RecordExplorer({ documentId, savedEventCount, pendingCou
           filtered.map((record) => (
             <details className="record-entry" key={record.id} onMouseEnter={() => onHover(record.operationId)} onMouseLeave={() => onHover(null)}>
               <summary><span className={`record-type ${record.type.toLowerCase()}`}>{labels[record.type]}</span><span className="record-version">v{record.version}</span><time dateTime={record.receivedAt}>{new Date(record.receivedAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time></summary>
-              <p className="record-snippet">{record.snippet || record.insertedText?.slice(0, 80) || "正文已修改"}</p>
+              {record.type === "AI_INSERT" ? <p className="record-snippet">{record.snippet || record.insertedText?.slice(0, 80) || "正文已修改"}</p> : <ChangePreview type={record.type} before={previousContent.get(record.id) ?? emptyDocument()} after={record.contentAfter} fallback={record.snippet || "正文已修改"} insertedText={record.insertedText} insertPosition={record.insertPosition} replacedLength={record.replacedLength} />}
               <dl className="record-attributes">
                 <dt>操作 ID</dt><dd><code>{record.operationId}</code></dd>
                 <dt>记录时间</dt><dd>{record.timestamp ?? "未提供"}</dd>

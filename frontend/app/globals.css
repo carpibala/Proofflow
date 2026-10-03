@@ -102,6 +102,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .record-type.ai_insert { color: #126c5e; }
 .record-version, .record-entry time { font-size: 10px; color: #849397; white-space: nowrap; }
 .record-snippet { margin: 7px 0 0; font-size: 11px; line-height: 1.5; color: #55676a; overflow-wrap: anywhere; }
+.manual-change-preview { margin: 7px 0 5px; min-width: 0; }
+.change-caption { color: #627579; font-size: 10px; font-weight: 700; }
+.timeline-content .change-hunk, .record-entry .change-hunk { margin: 4px 0 7px; color: #59686b; font-size: 11px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow-y: auto; }
+.change-added { background: #d9f1e3; color: #155c43; padding: 1px 0; }
+.change-removed { background: #ffe5e3; color: #b42318; font-weight: 700; text-decoration: none; padding: 1px 0; }
 .record-attributes { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 7px 9px; margin: 12px 0 0; padding: 10px 0 0; border-top: 1px dashed #dfe7e5; font-size: 10px; line-height: 1.5; }
 .record-attributes dt { color: #77878a; }
 .record-attributes dd { margin: 0; color: #334448; overflow-wrap: anywhere; white-space: pre-wrap; }

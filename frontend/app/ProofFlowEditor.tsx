@@ -12,6 +12,8 @@ import {
   type EditorDocument,
 } from "@/lib/editor-document";
 import { samplePrompt, sampleResponse } from "@/lib/demo-ai";
+import { manualChangeSnippet } from "@/lib/change-preview";
+import ChangePreview from "./ChangePreview";
 import RecordExplorer from "./RecordExplorer";
 
 type EventType = "MANUAL_EDIT" | "PASTE" | "AI_INSERT";
@@ -68,7 +70,7 @@ function insertedPunctuation(before: string, after: string): boolean {
 
 function flushManualEdit(current: Draft): Draft {
   if (!current.pendingManual) return current;
-  const text = plainText(current.document);
+  const before = current.events.at(-1)?.contentAfter ?? emptyDocument();
   return {
     ...current,
     pendingManual: false,
@@ -76,7 +78,7 @@ function flushManualEdit(current: Draft): Draft {
       operationId: crypto.randomUUID(),
       type: "MANUAL_EDIT",
       timestamp: new Date().toISOString(),
-      snippet: text.slice(0, 72) || "文字已删除",
+      snippet: manualChangeSnippet(plainText(before), plainText(current.document)),
       contentAfter: current.document,
     }],
   };
@@ -399,7 +401,7 @@ export default function ProofFlowEditor() {
           <div className="timeline-panel">
             <div className="section-heading"><div className="side-tabs" role="tablist" aria-label="记录视图"><button type="button" role="tab" aria-selected={sideView === "timeline"} onClick={() => setSideView("timeline")}>时间线</button><button type="button" role="tab" aria-selected={sideView === "records"} onClick={() => setSideView("records")}>记录</button></div>{sideView === "timeline" && <span>{draft.events.length} 条本地事件</span>}</div>
             {sideView === "timeline" ? <div className="timeline-list" role="tabpanel" aria-label="创建时间线">
-              {draft.events.length ? [...draft.events].reverse().map((event) => (
+              {draft.events.length ? [...draft.events].reverse().map((event, reverseIndex) => (
                 <div
                   className={`timeline-item ${hoveredEventId === event.operationId ? "is-linked" : ""}`}
                   key={event.operationId}
@@ -407,7 +409,7 @@ export default function ProofFlowEditor() {
                   onMouseLeave={() => setHoveredEventId(null)}
                 >
                   <span className={`timeline-node ${event.type.toLowerCase()}`} />
-                  <div className="timeline-content"><div className="timeline-meta"><strong>{eventLabel(event.type)}</strong><time dateTime={event.timestamp}>{new Date(event.timestamp).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3 })}</time></div><p>{event.snippet}</p><code>{event.operationId.slice(0, 8)}</code></div>
+                  <div className="timeline-content"><div className="timeline-meta"><strong>{eventLabel(event.type)}</strong><time dateTime={event.timestamp}>{new Date(event.timestamp).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3 })}</time></div>{event.type === "AI_INSERT" ? <p>{event.snippet}</p> : <ChangePreview type={event.type} before={draft.events[draft.events.length - reverseIndex - 2]?.contentAfter ?? emptyDocument()} after={event.contentAfter} fallback={event.snippet} insertedText={event.insertedText} insertPosition={event.insertPosition} replacedLength={event.replacedLength} />}<code>{event.operationId.slice(0, 8)}</code></div>
                 </div>
               )) : <div className="timeline-empty">开始编辑后，这里会显示操作记录。</div>}
             </div> : <RecordExplorer documentId={draft.documentId} savedEventCount={draft.savedEventCount ?? 0} pendingCount={Math.max(0, draft.events.length - (draft.savedEventCount ?? 0)) + (draft.pendingManual ? 1 : 0)} onHover={setHoveredEventId} />}

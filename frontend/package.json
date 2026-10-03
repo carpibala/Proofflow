@@ -8,11 +8,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test tests/editor-document.test.mjs tests/proof-format.test.mjs",
+    "test": "node --experimental-strip-types --test tests/editor-document.test.mjs tests/change-preview.test.mjs tests/proof-format.test.mjs",
     "test:integration": "node --experimental-strip-types --test tests/api.integration.test.mjs",
     "test:ui": "node --test tests/ui.smoke.test.mjs"
   },
   "dependencies": {
+    "diff": "^9.0.0",
     "lucide-react": "^1.51.0",
     "next": "16.3.8",
     "react": "19.2.8",

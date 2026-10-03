@@ -137,6 +137,83 @@ test("manual typing records punctuation and saves unfinished text after a pause"
   } finally { await browser.close(); }
 });
 
+test("manual changes in a long document show bounded highlighted context in both views", async () => {
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    await page.goto(base);
+    await page.getByText("正文服务端版本 0").waitFor();
+    const editor = page.getByRole("textbox", { name: "文档正文" });
+    const before = `${"Intro sentence. ".repeat(20)}Target old phrase. Follow-up sentence. ${"Tail sentence. ".repeat(20)}`;
+    await editor.fill(before);
+    await editor.blur();
+    await page.getByText("正文服务端版本 1").waitFor();
+    await editor.fill(before.replace("old", "new"));
+    await editor.blur();
+    await page.getByText("正文服务端版本 2").waitFor();
+
+    const timeline = page.locator(".timeline-item").first();
+    assert.equal(await timeline.locator("mark.change-added").textContent(), "new");
+    assert.equal(await timeline.locator("del.change-removed").textContent(), "old");
+    assert.deepEqual(await timeline.locator("del.change-removed").evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { color: style.color, background: style.backgroundColor, decoration: style.textDecorationLine };
+    }), { color: "rgb(180, 35, 24)", background: "rgb(255, 229, 227)", decoration: "none" });
+    assert.ok((await timeline.locator(".change-hunk").textContent()).length < 150);
+    assert.match(await timeline.locator(".change-hunk").textContent(), /^…/);
+
+    await page.getByRole("tab", { name: "记录" }).click();
+    await page.getByText("检索到 2 条").waitFor();
+    const record = page.locator(".record-entry").first();
+    assert.equal(await record.locator("mark.change-added").textContent(), "new");
+    assert.equal(await record.locator("del.change-removed").textContent(), "old");
+    assert.equal(await record.locator("del.change-removed").evaluate((element) => getComputedStyle(element).textDecorationLine), "none");
+    assert.ok((await record.locator(".change-hunk").textContent()).length < 150);
+  } finally { await browser.close(); }
+});
+
+test("a long-document paste shows bounded context and the full pasted selection", async () => {
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    await page.goto(base);
+    await page.getByText("正文服务端版本 0").waitFor();
+    const editor = page.getByRole("textbox", { name: "文档正文" });
+    const before = `${"Intro sentence. ".repeat(20)}Target old phrase. ${"Tail sentence. ".repeat(20)}`;
+    await editor.fill(before);
+    await editor.blur();
+    await page.getByText("正文服务端版本 1").waitFor();
+    await editor.evaluate((input) => {
+      const start = input.value.indexOf("old");
+      input.focus();
+      input.setSelectionRange(start, start + 3);
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", "new pasted phrase");
+      input.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    });
+    await page.getByText("正文服务端版本 2").waitFor();
+
+    const timeline = page.locator(".timeline-item").first();
+    assert.equal(await timeline.locator(".change-caption").textContent(), "粘贴部分");
+    assert.equal(await timeline.locator("mark.change-added").textContent(), "new pasted phrase");
+    assert.equal(await timeline.locator("del.change-removed").textContent(), "old");
+    assert.deepEqual(await timeline.locator("del.change-removed").evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { color: style.color, background: style.backgroundColor, decoration: style.textDecorationLine };
+    }), { color: "rgb(180, 35, 24)", background: "rgb(255, 229, 227)", decoration: "none" });
+    assert.ok((await timeline.locator(".change-hunk").textContent()).length < 160);
+
+    await page.getByRole("tab", { name: "记录" }).click();
+    await page.getByText("检索到 2 条").waitFor();
+    const record = page.locator(".record-entry").first();
+    assert.equal(await record.locator(".change-caption").textContent(), "粘贴部分");
+    assert.equal(await record.locator("mark.change-added").textContent(), "new pasted phrase");
+    assert.equal(await record.locator("del.change-removed").textContent(), "old");
+    assert.equal(await record.locator("del.change-removed").evaluate((element) => getComputedStyle(element).textDecorationLine), "none");
+    assert.ok((await record.locator(".change-hunk").textContent()).length < 160);
+  } finally { await browser.close(); }
+});
+
 test("each inserted punctuation mark records immediately, including Chinese punctuation", async () => {
   const browser = await launchBrowser();
   try {
@@ -188,6 +265,7 @@ test("a document missing from this server shows a useful error without deleting 
     await page.getByRole("alert").getByText(/当前服务未找到这份文档/).waitFor();
     await page.getByText("有 1 条待保存操作，保存完成后可验证。").waitFor();
     await page.reload();
+    await page.waitForFunction(() => document.querySelector('textarea[aria-label="文档正文"]')?.value === "local work");
     assert.equal(await page.getByRole("textbox", { name: "文档正文" }).inputValue(), "local work");
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("proofflow-local-draft-v1")).documentId), documentId);
   } finally { await browser.close(); }
