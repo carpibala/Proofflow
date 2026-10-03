@@ -1,5 +1,5 @@
 ﻿========================================================================
-FILE: D:\hacku\teamproject\Proofflow\encrypt_zac\demo\01-v0.1-original.json
+FILE: demo/01-v0.1-original.json
   version      : 0.1.0
   session_id   : 3f2a1b4c-8e9d-4f7a-b2c1-1a2b3c4d5e6f
   user_id      : anon-7f3a2c1b9d4e
@@ -27,7 +27,7 @@ FILE: D:\hacku\teamproject\Proofflow\encrypt_zac\demo\01-v0.1-original.json
   ── 校验 ──
   ✅ INTACT  Log intact — 8 events verified.
 ========================================================================
-FILE: D:\hacku\teamproject\Proofflow\encrypt_zac\demo\02-v0.2-chained.json
+FILE: demo/02-v0.2-chained.json
   version      : 0.1.0
   session_id   : 3f2a1b4c-8e9d-4f7a-b2c1-1a2b3c4d5e6f
   user_id      : anon-7f3a2c1b9d4e
@@ -55,7 +55,7 @@ FILE: D:\hacku\teamproject\Proofflow\encrypt_zac\demo\02-v0.2-chained.json
   ── 校验 ──
   ✅ INTACT  Log intact — 8 events verified.
 ========================================================================
-FILE: D:\hacku\teamproject\Proofflow\encrypt_zac\demo\03-tampered-field.json
+FILE: demo/03-tampered-field.json
   version      : 0.1.0
   session_id   : 3f2a1b4c-8e9d-4f7a-b2c1-1a2b3c4d5e6f
   user_id      : anon-7f3a2c1b9d4e
@@ -83,7 +83,7 @@ FILE: D:\hacku\teamproject\Proofflow\encrypt_zac\demo\03-tampered-field.json
   ── 校验 ──
   ❌ BROKEN  Hash mismatch at event 3 (type='ai_interaction'). Expected 2db971bcf6a83e33…, got 94cdee14e59a8419…
 ========================================================================
-FILE: D:\hacku\teamproject\Proofflow\encrypt_zac\demo\04-tampered-order.json
+FILE: demo/04-tampered-order.json
   version      : 0.1.0
   session_id   : 3f2a1b4c-8e9d-4f7a-b2c1-1a2b3c4d5e6f
   user_id      : anon-7f3a2c1b9d4e
@@ -111,7 +111,7 @@ FILE: D:\hacku\teamproject\Proofflow\encrypt_zac\demo\04-tampered-order.json
   ── 校验 ──
   ❌ BROKEN  Hash mismatch at event 4 (type='checkpoint'). Expected 6dbd9f3704aa2263…, got c16835fb9af97e43…
 ========================================================================
-FILE: D:\hacku\teamproject\Proofflow\encrypt_zac\demo\05-tampered-rechained.json
+FILE: demo/05-tampered-rechained.json
   version      : 0.1.0
   session_id   : 3f2a1b4c-8e9d-4f7a-b2c1-1a2b3c4d5e6f
   user_id      : anon-7f3a2c1b9d4e

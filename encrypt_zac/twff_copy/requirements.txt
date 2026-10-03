@@ -28,18 +28,17 @@
 # 可选依赖（不装也能正常使用）
 # ---------------------------------------------------------------------------
 # TWFF 参考实现仓库（仅用于"跨实现校验"一步）
-#   位置：项目根目录的兄弟目录，即 encrypt_zac\twff\  （或历史上 zacc 下的副本）
+#   位置：twff_copy 的兄弟目录，即 encrypt_zac/twff/
 #   需要的文件：twff/spec/verification/verify_process_log.py
 #   作用：用它自带的校验器复验本工具产出的 audit.json，证明两者格式互通
 #   注意：这不是 Python 包，无法用 pip 安装；不存在时该项目只会少一项可选的交叉验证，
 #         核心功能（init / watch / announce / verify / show）完全不受影响。
 #   取得方式（若已在别处删掉，可重新克隆）：
-#     git clone https://github.com/Functional-Intelligence-Research-Lab/twff
+#     git clone https://github.com/Functional-Intelligence-Research-Lab/twff encrypt_zac/twff
 #
 # ---------------------------------------------------------------------------
 # 环境自检（不安装任何东西，30 秒确认环境可用）
 # ---------------------------------------------------------------------------
 #   python -c "import sys; print(sys.version)"      # 应 >= 3.10
 #   python test_diff.py                             # 应输出「通过 29 项，失败 0 项」
-#   python chainlog.py verify --log audit.json --file textfile.txt
-#                                                   # 应输出「✅ 完整 N 条事件，链未被篡改」
+#   建基线后再运行：python chainlog.py verify --log audit.json --file textfile.txt

@@ -37,7 +37,7 @@ npm run test:integration
 npm run test:ui
 ```
 
-The UI test uses the installed Microsoft Edge by default. Set `PROOFFLOW_BROWSER_PATH` to another Chromium executable or `PROOFFLOW_TEST_URL` to another local server if needed. It writes desktop/mobile screenshots under ignored `frontend/data/`.
+The UI test tries installed Microsoft Edge, Google Chrome, then Playwright Chromium. Run `npx playwright-core install chromium` if none is installed. Set `PROOFFLOW_BROWSER_PATH` to a Chromium executable or `PROOFFLOW_TEST_URL` to another local server if needed. It writes desktop/mobile screenshots under ignored `frontend/data/`, relative to this frontend directory even when the test is launched elsewhere.
 
 ## Known limits
 

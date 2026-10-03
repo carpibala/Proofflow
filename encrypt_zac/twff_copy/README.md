@@ -16,12 +16,10 @@
 
 > 📌 **TWFF 仓库在本目录之外。** 本构件自包含、可独立运行；
 > 只有"跨实现校验"这一步需要 TWFF 的 `spec/verification/verify_process_log.py`。
-> 常见的两个副本位置：
-> - `..\twff\`（本目录的兄弟目录，即 `encrypt_zac\twff`）
-> - `D:\hacku\teamproject\zacc\encrypt_zac\twff\`
+> 放在 `../twff/`（本目录的兄弟目录，即 `encrypt_zac/twff/`）。
 >
-> 若都不在，重新克隆：
-> `git clone https://github.com/Functional-Intelligence-Research-Lab/twff`
+> 若目录不存在，从仓库根目录克隆：
+> `git clone https://github.com/Functional-Intelligence-Research-Lab/twff encrypt_zac/twff`
 
 > 🆕 **接手这个功能？先读 [`docs/交接总结.md`](docs/交接总结.md)** —— 里面有全部踩坑记录、
 > 设计取舍、验证方法和下一步建议。本文件是功能说明与实测数据。
@@ -59,9 +57,10 @@ twff_copy/
 
 > 终端提示符出现 `(mytest)` 就说明环境已激活，直接用 `python`。
 > **不要用 `$PY` 之类的变量**——忘了赋值就会报「&后面的表达式生成无效的对象」。
+> Windows 终端若因输出 `✅` 报 `UnicodeEncodeError`，先执行 `$env:PYTHONIOENCODING = 'utf-8'`。
 
 ```powershell
-cd D:\hacku\teamproject\Proofflow\encrypt_zac\twff_copy
+cd encrypt_zac/twff_copy
 
 # 1) 建立基线（记录当前文件状态并起链）
 python chainlog.py init --file textfile.txt --log audit.json

@@ -1,14 +1,30 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { chromium } from "playwright-core";
 
 const base = process.env.PROOFFLOW_TEST_URL ?? "http://localhost:3001";
-const edge = process.env.PROOFFLOW_BROWSER_PATH ?? "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
+const output = join(dirname(dirname(fileURLToPath(import.meta.url))), "data");
+
+async function launchBrowser() {
+  const executablePath = process.env.PROOFFLOW_BROWSER_PATH;
+  if (executablePath) return chromium.launch({ executablePath, headless: true });
+
+  const errors = [];
+  for (const options of [{ channel: "msedge" }, { channel: "chrome" }, {}]) {
+    try {
+      return await chromium.launch({ ...options, headless: true });
+    } catch (error) {
+      errors.push(`${options.channel ?? "chromium"}: ${error.message}`);
+    }
+  }
+  throw new Error(`No supported browser found. Install Edge, Chrome, or Playwright Chromium, or set PROOFFLOW_BROWSER_PATH.\n${errors.join("\n")}`);
+}
 
 test("editor saves manual, paste and AI events and restores them after reload", async () => {
-  const browser = await chromium.launch({ executablePath: edge, headless: true });
+  const browser = await launchBrowser();
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
     await page.goto(base);
@@ -43,7 +59,6 @@ test("editor saves manual, paste and AI events and restores them after reload", 
     assert.equal(json.events[1].insertedText, "pasted ");
     assert.equal(json.events[2].aiResponseId, json.aiResponses[0].id);
 
-    const output = join(process.cwd(), "data");
     mkdirSync(output, { recursive: true });
     await page.screenshot({ path: join(output, "proofflow-desktop.png"), fullPage: true });
     await page.reload();

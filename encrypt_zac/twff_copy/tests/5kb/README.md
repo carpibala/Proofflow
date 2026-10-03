@@ -24,7 +24,7 @@
 ## 复现方式
 
 ```powershell
-cd D:\hacku\teamproject\Proofflow\encrypt_zac\twff_copy\tests\5kb
+cd encrypt_zac/twff_copy/tests/5kb
 
 python run_5kb_test.py 300     # 跑测试，参数是 preview-chars
 python inspect_result.py       # 生成 summary.txt（逐条 diff + 体积拆解）

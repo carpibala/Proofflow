@@ -23,21 +23,25 @@
 ## 运行
 
 ```powershell
-# PowerShell，用仓库根目录作为工作目录
-$PY = "D:\DPH\resources\runtime\primary-runtime\dependencies\python\python.exe"
+# PowerShell，从 Proofflow 仓库根目录进入 encrypt_zac
+cd encrypt_zac
+$env:PYTHONIOENCODING = 'utf-8'  # Windows 终端输出 Unicode 字符时需要
 
 # 1) 生成示例日志
-& $PY demo\build_demo_logs.py
+python demo/build_demo_logs.py
 
 # 2) 查看 + 校验（可传多个文件）
-& $PY demo\view_logs.py demo\01-v0.1-original.json demo\02-v0.2-chained.json demo\03-tampered-field.json
+python demo/view_logs.py demo/01-v0.1-original.json demo/02-v0.2-chained.json demo/03-tampered-field.json
 
 # 3) 直接看容器（自动识别 ZIP）
-& $PY demo\view_logs.py demo\full.twff
+python demo/view_logs.py demo/full.twff
 
 # 4) 重建容器
-& $PY demo\build_container.py
+python demo/build_container.py
 ```
+
+这些脚本还需要 TWFF 参考实现位于 `encrypt_zac/twff/`。本仓库目前没有该目录；如需运行演示，可先从仓库根目录执行
+`git clone https://github.com/Functional-Intelligence-Research-Lab/twff encrypt_zac/twff`。
 
 > 用仓库自带的 `spec/validate_examples.py` 也可以，但有两个坑：
 > ① 它需要 `pip install jsonschema`；② 它用裸 `open()` 读写，

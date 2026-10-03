@@ -6,7 +6,7 @@
 ## 主要内容
 1. **用户请求**: 用户要求将前面聊天内容总结成文件。
 2. **环境信息**:
-   - 当前工作目录: `c:/Users/Samsung/Documents/GitHub/Proofflow`
+   - 当前工作目录: 仓库根目录 `Proofflow/`（原机器的绝对路径已省略）
    - 当前模式: 代码模式 (💻 Code)
    - 可见文件: `frontend/app/page.tsx`
    - 当前时间: 2026-10-03T09:22:33.051Z (UTC)
