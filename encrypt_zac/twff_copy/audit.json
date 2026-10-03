@@ -228,12 +228,20 @@
         "diff_truncated": false
       },
       "_hash": "27b9302996931be72247d9616962c8b8301051fbbd802e8a8613b5e401b12411"
+    },
+    {
+      "timestamp": "2026-10-03T10:56:03Z",
+      "type": "watch_start",
+      "meta": {
+        "interval_sec": 1.0
+      },
+      "_hash": "9cee395528db0c50b7ebdc6a658342b94799b97f739fdfd4c0504780f184ab19"
     }
   ],
   "_integrity": {
     "algorithm": "SHA-256-CHAIN",
-    "chain_length": 14,
-    "head_hash": "27b9302996931be72247d9616962c8b8301051fbbd802e8a8613b5e401b12411",
+    "chain_length": 15,
+    "head_hash": "9cee395528db0c50b7ebdc6a658342b94799b97f739fdfd4c0504780f184ab19",
     "session_id": "f3cfbe40-48c4-4863-90f6-cda302854fed",
     "note": "Per-event chained hash. Verify using spec §5.2."
   }
