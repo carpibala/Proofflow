@@ -1,4 +1,4 @@
-import { createHash, createPublicKey, KeyObject } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { EditorDocument } from "./editor-document";
 
 export const HASH_FORMAT_VERSION = 1;
@@ -26,19 +26,16 @@ export type EvidenceEvent = {
   eventHash: string;
 };
 
-export type UnsignedCertificate = {
-  certificateId: string;
+export type FrozenManifest = {
   documentId: string;
+  title: string;
   finalVersion: number;
   finalizedAt: string;
   contentHash: string;
   eventCount: number;
   eventHeadHash: string;
   hashFormatVersion: 1;
-  keyId: string;
 };
-
-export type Certificate = UnsignedCertificate & { signature: string };
 
 export type EvidenceData = {
   documentId: string;
@@ -52,7 +49,8 @@ export type EvidenceData = {
 
 export type EvidencePackage = {
   formatVersion: 1;
-  certificate: Certificate;
+  kind: "proof-flow-evidence";
+  manifest: FrozenManifest;
   contentJson: EditorDocument;
   events: EvidenceEvent[];
 };
@@ -72,13 +70,6 @@ export function canonicalJson(value: unknown): string {
 
 export function sha256Hex(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
-}
-
-export function keyIdFromPublicKey(publicKey: KeyObject | string | Buffer): string {
-  const key = publicKey instanceof KeyObject && publicKey.type === "public" ? publicKey : createPublicKey(publicKey);
-  if (key.asymmetricKeyType !== "ed25519") throw new TypeError("Expected an Ed25519 public key");
-  const spki = key.export({ format: "der", type: "spki" });
-  return `ed25519-sha256:${createHash("sha256").update(spki).digest("hex")}`;
 }
 
 export function normalizeProofEvent(event: {
@@ -174,17 +165,28 @@ export function verifyEvidenceChain(evidence: EvidenceData, expectedHeadHash?: s
   return { valid: true, checkedEvents: evidence.events.length, headHash: previousHash };
 }
 
-export function certificateSigningBytes(certificate: UnsignedCertificate): Buffer {
-  const fields: UnsignedCertificate = {
-    certificateId: certificate.certificateId,
-    documentId: certificate.documentId,
-    finalVersion: certificate.finalVersion,
-    finalizedAt: certificate.finalizedAt,
-    contentHash: certificate.contentHash,
-    eventCount: certificate.eventCount,
-    eventHeadHash: certificate.eventHeadHash,
-    hashFormatVersion: certificate.hashFormatVersion,
-    keyId: certificate.keyId,
-  };
-  return Buffer.from(`ProofFlow certificate v1\n${canonicalJson(fields)}`, "utf8");
+export function verifyEvidencePackage(value: unknown): ChainVerification {
+  const invalid: ChainVerification = { valid: false, checkedEvents: 0, headHash: "", code: "INVALID_BUNDLE", message: "Evidence package is incomplete or unsupported" };
+  if (!value || typeof value !== "object") return invalid;
+  const bundle = value as Partial<EvidencePackage>;
+  const manifest = bundle.manifest;
+  if (bundle.formatVersion !== 1 || bundle.kind !== "proof-flow-evidence" ||
+      !manifest || typeof manifest.documentId !== "string" || typeof manifest.title !== "string" ||
+      !Number.isInteger(manifest.finalVersion) || typeof manifest.finalizedAt !== "string" ||
+      typeof manifest.contentHash !== "string" || !Number.isInteger(manifest.eventCount) ||
+      typeof manifest.eventHeadHash !== "string" || manifest.hashFormatVersion !== 1 ||
+      !bundle.contentJson || !Array.isArray(bundle.events)) return invalid;
+  try {
+    return verifyEvidenceChain({
+      documentId: manifest.documentId,
+      finalVersion: manifest.finalVersion,
+      contentJson: bundle.contentJson,
+      contentHash: manifest.contentHash,
+      eventCount: manifest.eventCount,
+      eventHeadHash: manifest.eventHeadHash,
+      events: bundle.events,
+    });
+  } catch {
+    return invalid;
+  }
 }

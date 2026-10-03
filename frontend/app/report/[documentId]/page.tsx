@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, ClipboardPaste, FileCheck2, FileText, Languages, Plus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ClipboardPaste, Download, FileCheck2, FileText, Languages, LockKeyhole, Plus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { emptyDocument, type EditorDocument } from "@/lib/editor-document";
 import { translations, type Language } from "@/lib/i18n";
 import { summarizeChanges, type ReportEvent } from "@/lib/report-stats";
 import ChangePreview from "@/app/ChangePreview";
 
-type DocumentData = { id: string; title: string; version: number; contentJson: EditorDocument };
+type DocumentData = { id: string; title: string; version: number; status: "draft" | "finalized"; finalizedAt: string | null; contentJson: EditorDocument };
 type Verification = { valid: boolean; checkedEvents: number; headHash: string; code?: string; message?: string };
 type ReportData = { document: DocumentData; events: ReportEvent[]; verification: Verification };
 
@@ -28,6 +28,11 @@ export default function ReportPage() {
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
+  const [confirmFreeze, setConfirmFreeze] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const [pendingLocal, setPendingLocal] = useState(false);
   const t = translations[language];
   const labels = t.report;
 
@@ -67,6 +72,67 @@ export default function ReportPage() {
     ? labels.failureReasons[failureCode as keyof typeof labels.failureReasons]
     : report?.verification.message;
 
+  useEffect(() => {
+    if (!report) return;
+    queueMicrotask(() => {
+      try {
+        const raw = localStorage.getItem("proofflow-local-draft-v1");
+        const draft = raw ? JSON.parse(raw) as { documentId?: string; pendingManual?: boolean; events?: unknown[]; savedEventCount?: number; serverVersion?: number } : null;
+        setPendingLocal(Boolean(draft && draft.documentId === report.document.id &&
+          (draft.pendingManual || (draft.events?.length ?? 0) > (draft.savedEventCount ?? 0) || draft.serverVersion !== report.document.version)));
+      } catch { setPendingLocal(false); }
+    });
+  }, [report]);
+
+  const finalize = async () => {
+    if (!report || !valid || pendingLocal) return;
+    setFinalizing(true);
+    setActionError("");
+    try {
+      let title = report.document.title;
+      try {
+        const raw = localStorage.getItem("proofflow-local-draft-v1");
+        const local = raw ? JSON.parse(raw) as { documentId?: string; title?: string } : null;
+        if (local?.documentId === report.document.id && local.title?.trim()) title = local.title.trim();
+      } catch { /* The server title remains available without local storage. */ }
+      const response = await fetch(`/api/documents/${encodeURIComponent(documentId)}/finalize`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expectedVersion: report.document.version, title }),
+      });
+      if (!response.ok) {
+        const error = await response.json() as { error?: string };
+        throw new Error(error.error ?? `HTTP ${response.status}`);
+      }
+      setConfirmFreeze(false);
+      setReload((value) => value + 1);
+    } catch (error) {
+      setActionError(`${labels.freezeFailed} ${error instanceof Error ? error.message : ""}`);
+    } finally { setFinalizing(false); }
+  };
+
+  const downloadBundle = async () => {
+    if (!report || !valid || report.document.status !== "finalized") return;
+    setDownloading(true);
+    setActionError("");
+    try {
+      const response = await fetch(`/api/documents/${encodeURIComponent(documentId)}/bundle`, { cache: "no-store" });
+      if (!response.ok) {
+        const error = await response.json() as { error?: string };
+        throw new Error(error.error ?? `HTTP ${response.status}`);
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `proofflow-evidence-${documentId}.json`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      setActionError(`${labels.downloadFailed} ${error instanceof Error ? error.message : ""}`);
+    } finally { setDownloading(false); }
+  };
+
   const changeLanguage = (next: Language) => {
     setLanguage(next);
     document.documentElement.lang = next === "zh" ? "zh-CN" : "en";
@@ -89,7 +155,11 @@ export default function ReportPage() {
       <main className="report-main">
         <div className="report-intro">
           <div><span className="report-eyebrow">ProofFlow / Report</span><h1>{labels.title}</h1><p>{labels.subtitle}</p></div>
-          <button className="report-refresh" type="button" onClick={() => setReload((value) => value + 1)} disabled={loading}><RefreshCw size={16} />{labels.refresh}</button>
+          <div className="report-actions">
+            <button className="report-refresh" type="button" onClick={() => setReload((value) => value + 1)} disabled={loading}><RefreshCw size={16} />{labels.refresh}</button>
+            {report?.document.status === "draft" && <button className="report-freeze" type="button" onClick={() => setConfirmFreeze(true)} disabled={loading || !valid || pendingLocal || finalizing}><LockKeyhole size={16} />{labels.freeze}</button>}
+            {report?.document.status === "finalized" && <button className="report-freeze" type="button" onClick={downloadBundle} disabled={loading || !valid || downloading}><Download size={16} />{downloading ? labels.downloading : labels.download}</button>}
+          </div>
         </div>
 
         {loading && !report ? <p className="report-message" role="status">{labels.loading}</p> : error || !report || !summary ?
@@ -103,6 +173,11 @@ export default function ReportPage() {
           </div>
 
           <div className="report-disclosure"><FileText size={16} /><span>{labels.unsigned}</span></div>
+          <div className={`report-freeze-status ${report.document.status === "finalized" ? "is-frozen" : ""}`} role="status">
+            <LockKeyhole size={17} /><span>{report.document.status === "finalized" ? labels.frozenAt(report.document.finalizedAt ?? "") : labels.draftStatus}</span>
+          </div>
+          {pendingLocal && report.document.status === "draft" && <p className="report-action-warning" role="alert">{labels.unsavedWarning}</p>}
+          {actionError && <p className="report-action-warning" role="alert">{actionError}</p>}
 
           <section className="report-section" aria-labelledby="report-overview-title">
             <div className="report-section-heading"><h2 id="report-overview-title">{labels.overview}</h2><span>{summary.totals.eventCount} {language === "zh" ? "条已保存记录" : "saved records"}</span></div>
@@ -143,6 +218,10 @@ export default function ReportPage() {
           <footer className="report-method"><strong>{labels.method}</strong><p>{labels.methodText}</p></footer>
         </>}
       </main>
+      {confirmFreeze && <div className="report-modal-backdrop"><div className="report-modal" role="dialog" aria-modal="true" aria-labelledby="freeze-confirm-title">
+        <LockKeyhole size={22} /><h2 id="freeze-confirm-title">{labels.freezeConfirmTitle}</h2><p>{labels.freezeConfirmBody}</p>
+        <div className="report-modal-actions"><button type="button" onClick={() => setConfirmFreeze(false)} disabled={finalizing}>{labels.cancel}</button><button className="report-freeze" type="button" onClick={finalize} disabled={finalizing}>{finalizing ? labels.freezing : labels.confirmFreeze}</button></div>
+      </div></div>}
     </div>
   );
 }

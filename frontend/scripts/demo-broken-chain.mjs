@@ -51,12 +51,13 @@ async function prepare() {
   version = paste.version;
   content = pasteContent;
   await save({ type: "MANUAL_EDIT", snippet: "Removed world" }, replaceRange(content, 6, 11, ""));
+  await api(`/api/documents/${id}/finalize`, "POST", { expectedVersion: version });
 
   const before = await api(`/api/documents/${id}/verify`);
   if (!before.valid) throw new Error(`Expected a valid chain before the demonstration: ${JSON.stringify(before)}`);
 
   console.log(`Demo document ID: ${id}`);
-  console.log(`Open this valid report: ${base}/report/${id}`);
+  console.log(`Open this frozen report and download its evidence bundle: ${base}/report/${id}`);
   console.log(`Verification: valid=${before.valid}, checked=${before.checkedEvents}`);
   console.log(`To break this demo's link: npm run demo:broken-chain -- tamper ${id} ${base}`);
 }

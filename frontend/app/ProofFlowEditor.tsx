@@ -11,7 +11,6 @@ import {
   replaceRange,
   type EditorDocument,
 } from "@/lib/editor-document";
-import { samplePrompt, sampleResponse } from "@/lib/demo-ai";
 import { manualChangeSnippet } from "@/lib/change-preview";
 import { translations, type Language } from "@/lib/i18n";
 import ChangePreview from "./ChangePreview";
@@ -29,17 +28,15 @@ type DraftEvent = {
   replacedLength?: number;
   aiResponseId?: string;
 };
-type DemoResponse = { id: string; prompt: string; responseText: string; source: "demo_sample" };
 type Draft = {
   title: string; document: EditorDocument; events: DraftEvent[];
   documentId?: string; serverVersion?: number; savedEventCount?: number;
-  demoAiResponse?: DemoResponse;
+  status?: "draft" | "finalized";
   pendingManual?: boolean;
 };
 
 const storageKey = "proofflow-local-draft-v1";
 const languageKey = "proofflow-ui-language";
-const sampleResponseId = "local-demo-response-v1";
 const manualIdleMs = 2000;
 
 const newDraft = (): Draft => ({ title: "", document: emptyDocument(), events: [] });
@@ -71,7 +68,7 @@ function insertedPunctuation(before: string, after: string): boolean {
 }
 
 function flushManualEdit(current: Draft): Draft {
-  if (!current.pendingManual) return current;
+  if (!current.pendingManual || current.status === "finalized") return current;
   const before = current.events.at(-1)?.contentAfter ?? emptyDocument();
   return {
     ...current,
@@ -184,11 +181,14 @@ export default function ProofFlowEditor() {
     fetch(`/api/documents/${draft.documentId}`, { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error(`Read failed: ${response.status}`);
-        return response.json() as Promise<{ version: number; demoAiResponse: DemoResponse }>;
+        return response.json() as Promise<{ title: string; version: number; status: "draft" | "finalized"; contentJson: EditorDocument }>;
       })
       .then((server) => {
         if (!active) return;
-        setDraft((current) => current.demoAiResponse ? current : { ...current, demoAiResponse: server.demoAiResponse });
+        setDraft((current) => ({ ...current, status: server.status,
+          ...(server.status === "finalized" && (current.savedEventCount ?? 0) === current.events.length &&
+            current.serverVersion === server.version ? { document: server.contentJson, title: server.title } : {}),
+        }));
         const current = draftRef.current;
         if (!saving.current && (current.savedEventCount ?? 0) === current.events.length) {
           setSaveState(server.version === current.serverVersion ? "saved" : "error");
@@ -207,17 +207,13 @@ export default function ProofFlowEditor() {
       body: JSON.stringify({ title: draft.title || "Untitled document", editorSchemaVersion: 1, contentJson: emptyDocument() }),
     }).then(async (response) => {
       if (!response.ok) throw new Error(`Create failed: ${response.status}`);
-      return response.json() as Promise<{ id: string; version: number; demoAiResponse: DemoResponse }>;
+      return response.json() as Promise<{ id: string; version: number }>;
     }).then((created) => {
       setDraft((current) => ({
         ...current,
         documentId: created.id,
         serverVersion: created.version,
         savedEventCount: 0,
-        demoAiResponse: created.demoAiResponse,
-        events: current.events.map((event) => event.aiResponseId === sampleResponseId
-          ? { ...event, aiResponseId: created.demoAiResponse.id }
-          : event),
       }));
       if (!draftRef.current.pendingManual) setSaveState("saved");
     }).catch(() => { creating.current = false; setSaveState("error"); });
@@ -252,6 +248,7 @@ export default function ProofFlowEditor() {
 
   const recordManualEdit = (nextText: string) => {
     setDraft((current) => {
+      if (current.status === "finalized") return current;
       const beforeText = plainText(current.document);
       const nextDocument = reconcileText(current.document, nextText);
       if (plainText(nextDocument) === beforeText) return current;
@@ -261,7 +258,7 @@ export default function ProofFlowEditor() {
   };
 
   const insertPasteText = (insertedText: string) => {
-    if (!insertedText) return;
+    if (!insertedText || draft.status === "finalized") return;
     setSaveState("saving");
     const input = textareaRef.current;
     const start = input?.selectionStart ?? plainText(draft.document).length;
@@ -298,9 +295,6 @@ export default function ProofFlowEditor() {
       savedEventCount: draft.savedEventCount ?? 0,
       title: draft.title,
       contentJson: draft.document,
-      aiResponses: draft.events.some((event) => event.type === "AI_INSERT")
-        ? [draft.demoAiResponse ?? { id: sampleResponseId, prompt: samplePrompt, responseText: sampleResponse, source: "local_demo" }]
-        : [],
       events: draft.events,
     };
     const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
@@ -322,7 +316,7 @@ export default function ProofFlowEditor() {
         </div>
         <div className="topbar-right">
           <div className="language-switch" role="group" aria-label={t.language}><Languages size={15} aria-hidden="true" /><button type="button" aria-pressed={language === "zh"} onClick={() => changeLanguage("zh")}>{t.chinese}</button><button type="button" aria-pressed={language === "en"} onClick={() => changeLanguage("en")}>{t.english}</button></div>
-          <span className="draft-status" role="status"><span className={`status-dot ${saveState}`} />{saveState === "error" ? t.saveError : saveState === "saving" ? t.saving : saveState === "connecting" ? t.connecting : t.saved}</span>
+          <span className="draft-status" role="status"><span className={`status-dot ${draft.status === "finalized" ? "saved" : saveState}`} />{saveState === "error" ? t.saveError : draft.status === "finalized" ? t.frozen : saveState === "saving" ? t.saving : saveState === "connecting" ? t.connecting : t.saved}</span>
           {saveState === "error" && <button className="icon-button" onClick={() => { setSaveState("connecting"); setRetryToken((token) => token + 1); }} title={t.retrySave} aria-label={t.retrySave}><RotateCw size={17} /></button>}
           <button className="certificate-button" type="button" disabled={!draft.documentId || reportRequested} title={t.certificateHint} onClick={() => {
             setDraft((current) => flushManualEdit(current));
@@ -341,7 +335,7 @@ export default function ProofFlowEditor() {
           </div>
           <div className="editor-scroll">
             <div className="document-sheet">
-              <input className="document-title" aria-label={t.title} title={t.titleHint} placeholder={t.untitled} value={draft.title} onChange={(event) => {
+              <input className="document-title" aria-label={t.title} title={t.titleHint} placeholder={t.untitled} value={draft.title} disabled={draft.status === "finalized"} onChange={(event) => {
                 const title = event.currentTarget.value;
                 setDraft((current) => ({ ...current, title }));
               }} />
@@ -350,6 +344,7 @@ export default function ProofFlowEditor() {
                 className="document-input"
                 aria-label={t.body}
                 placeholder={t.bodyPlaceholder}
+                disabled={draft.status === "finalized"}
                 spellCheck={false}
                 value={plainText(draft.document)}
                 onChange={(event) => {

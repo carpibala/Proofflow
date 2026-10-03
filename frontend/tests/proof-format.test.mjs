@@ -1,9 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateKeyPairSync, sign, verify } from "node:crypto";
 import {
-  canonicalJson, certificateSigningBytes, GENESIS_HASH, hashContent,
-  hashEvidenceEvent, keyIdFromPublicKey, normalizeProofEvent, verifyEvidenceChain,
+  canonicalJson, GENESIS_HASH, hashContent,
+  hashEvidenceEvent, normalizeProofEvent, verifyEvidenceChain, verifyEvidencePackage,
 } from "../lib/proof-format.ts";
 
 const documentId = "11111111-1111-4111-8111-111111111111";
@@ -63,25 +62,22 @@ test("standalone chain verifier checks sequence, payload, final content and an o
   assert.equal(verifyEvidenceChain({ ...evidence, eventHeadHash: "f".repeat(64) }).code, "HEAD_MISMATCH");
 });
 
-test("certificate signing bytes bind metadata and omit signature", () => {
-  const unsigned = {
-    certificateId: "44444444-4444-4444-8444-444444444444",
-    documentId,
-    finalVersion: 1,
-    finalizedAt: "2026-10-03T00:00:01.000Z",
-    contentHash: hashContent(contentJson),
-    eventCount: 1,
-    eventHeadHash: hashEvidenceEvent(first),
-    hashFormatVersion: 1,
-    keyId: "ed25519-sha256:example",
+test("unsigned evidence package can be checked without the database", () => {
+  const event = { ...first, eventHash: hashEvidenceEvent(first) };
+  const bundle = {
+    formatVersion: 1, kind: "proof-flow-evidence",
+    manifest: {
+      documentId, title: "Example", finalVersion: 1,
+      finalizedAt: "2026-10-03T00:00:01.000Z",
+      contentHash: hashContent(contentJson), eventCount: 1,
+      eventHeadHash: event.eventHash, hashFormatVersion: 1,
+    },
+    contentJson, events: [event],
   };
-  const bytes = certificateSigningBytes(unsigned);
-  assert.deepEqual(bytes, certificateSigningBytes({ ...unsigned, signature: "ignored" }));
-  assert.notDeepEqual(bytes, certificateSigningBytes({ ...unsigned, finalVersion: 2 }));
-  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
-  assert.equal(keyIdFromPublicKey(publicKey), keyIdFromPublicKey(publicKey.export({ format: "pem", type: "spki" })));
-  assert.match(keyIdFromPublicKey(publicKey), /^ed25519-sha256:[0-9a-f]{64}$/);
-  const signature = sign(null, bytes, privateKey);
-  assert.equal(verify(null, bytes, publicKey, signature), true);
-  assert.equal(verify(null, certificateSigningBytes({ ...unsigned, contentHash: "0".repeat(64) }), publicKey, signature), false);
+  assert.equal(verifyEvidencePackage(bundle).valid, true);
+  assert.equal(verifyEvidencePackage({ ...bundle, events: [] }).code, "INCOMPLETE_HISTORY");
+  assert.equal(verifyEvidencePackage({ ...bundle, events: [{ ...event, event: { ...event.event, snippet: "changed" } }] }).code, "BROKEN_EVENT_CHAIN");
+  assert.equal(verifyEvidencePackage({ ...bundle, manifest: { ...bundle.manifest, contentHash: "f".repeat(64) } }).code, "CONTENT_MISMATCH");
+  assert.equal(verifyEvidencePackage({ ...bundle, manifest: { ...bundle.manifest, eventHeadHash: "f".repeat(64) } }).code, "HEAD_MISMATCH");
+  assert.equal(verifyEvidencePackage({ ...bundle, manifest: null }).code, "INVALID_BUNDLE");
 });

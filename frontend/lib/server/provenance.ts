@@ -3,8 +3,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { plainText, replaceRange, type EditorDocument } from "../editor-document";
-import { samplePrompt, sampleResponse } from "../demo-ai";
-import { canonicalJson, GENESIS_HASH, HASH_FORMAT_VERSION, hashContent, hashEvidenceEvent, normalizeProofEvent, verifyEvidenceChain, type EvidenceData, type EvidenceEvent, type ProofEvent } from "../proof-format";
+import { canonicalJson, GENESIS_HASH, HASH_FORMAT_VERSION, hashContent, hashEvidenceEvent, normalizeProofEvent, verifyEvidenceChain, type EvidenceData, type EvidenceEvent, type EvidencePackage, type FrozenManifest, type ProofEvent } from "../proof-format";
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
@@ -23,7 +22,9 @@ function db(): DatabaseSync {
     CREATE TABLE IF NOT EXISTS documents (
       id TEXT PRIMARY KEY, title TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'draft', content_json TEXT NOT NULL,
-      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      finalized_at TEXT, final_content_hash TEXT, final_event_head_hash TEXT,
+      final_event_count INTEGER
     );
     CREATE TABLE IF NOT EXISTS ai_responses (
       id TEXT PRIMARY KEY, document_id TEXT NOT NULL REFERENCES documents(id),
@@ -43,6 +44,11 @@ function db(): DatabaseSync {
   const columns = new Set((connection.prepare("PRAGMA table_info(events)").all() as { name: string }[]).map((column) => column.name));
   if (!columns.has("hash_format_version")) connection.exec("ALTER TABLE events ADD COLUMN hash_format_version INTEGER NOT NULL DEFAULT 0");
   if (!columns.has("event_payload_json")) connection.exec("ALTER TABLE events ADD COLUMN event_payload_json TEXT");
+  const documentColumns = new Set((connection.prepare("PRAGMA table_info(documents)").all() as { name: string }[]).map((column) => column.name));
+  if (!documentColumns.has("finalized_at")) connection.exec("ALTER TABLE documents ADD COLUMN finalized_at TEXT");
+  if (!documentColumns.has("final_content_hash")) connection.exec("ALTER TABLE documents ADD COLUMN final_content_hash TEXT");
+  if (!documentColumns.has("final_event_head_hash")) connection.exec("ALTER TABLE documents ADD COLUMN final_event_head_hash TEXT");
+  if (!documentColumns.has("final_event_count")) connection.exec("ALTER TABLE documents ADD COLUMN final_event_count INTEGER");
   database = connection;
   return connection;
 }
@@ -60,7 +66,7 @@ function sha256(value: string): string { return createHash("sha256").update(valu
 
 type Row = Record<string, string | number | null>;
 type EventInput = {
-  operationId: string; type: "MANUAL_EDIT" | "PASTE" | "AI_INSERT";
+  operationId: string; type: "MANUAL_EDIT" | "PASTE";
   timestamp?: string; snippet?: string; insertedText?: string;
   insertPosition?: { path: number[]; offset: number };
   replacedLength?: number; aiResponseId?: string | null;
@@ -86,7 +92,8 @@ function validateEvent(value: unknown): EventInput {
   if (!value || typeof value !== "object") throw new ApiError(400, "INVALID_EVENT", "Event is required");
   const event = value as EventInput;
   if (Object.keys(event).some((key) => !["operationId", "type", "timestamp", "snippet", "insertedText", "insertPosition", "replacedLength", "aiResponseId"].includes(key))) throw new ApiError(400, "INVALID_EVENT", "Unsupported event field");
-  if (!uuid.test(event.operationId) || !["MANUAL_EDIT", "PASTE", "AI_INSERT"].includes(event.type)) throw new ApiError(400, "INVALID_EVENT", "Invalid operation ID or event type");
+  if (!uuid.test(event.operationId) || !["MANUAL_EDIT", "PASTE"].includes(event.type) ||
+      (event.aiResponseId !== undefined && event.aiResponseId !== null)) throw new ApiError(400, "INVALID_EVENT", "Invalid operation ID or event type");
   if (event.timestamp && (typeof event.timestamp !== "string" || !Number.isFinite(Date.parse(event.timestamp)))) throw new ApiError(400, "INVALID_EVENT", "Invalid timestamp");
   if (event.snippet !== undefined && (typeof event.snippet !== "string" || event.snippet.length > 200)) throw new ApiError(400, "INVALID_EVENT", "Invalid snippet");
   if (event.type !== "MANUAL_EDIT") {
@@ -95,7 +102,6 @@ function validateEvent(value: unknown): EventInput {
     if (Object.keys(event.insertPosition).some((key) => !["path", "offset"].includes(key))) throw new ApiError(400, "INVALID_EVENT", "Unsupported insertion position field");
     if (event.replacedLength !== undefined && (!Number.isInteger(event.replacedLength) || event.replacedLength < 0)) throw new ApiError(400, "INVALID_EVENT", "Invalid replaced length");
   }
-  if (event.type === "AI_INSERT" && (typeof event.aiResponseId !== "string" || !uuid.test(event.aiResponseId))) throw new ApiError(400, "INVALID_EVENT", "AI response ID is required");
   return event;
 }
 
@@ -105,16 +111,14 @@ export function createDocument(input: unknown) {
   if (typeof body.title !== "string" || !body.title.trim() || body.title.length > 200 || body.editorSchemaVersion !== 1) throw new ApiError(400, "INVALID_REQUEST", "Title and editor schema version 1 are required");
   validateDocument(body.contentJson);
   const id = randomUUID();
-  const responseId = randomUUID();
   const now = new Date().toISOString();
   const connection = db();
   connection.exec("BEGIN IMMEDIATE");
   try {
     connection.prepare("INSERT INTO documents (id,title,content_json,created_at,updated_at) VALUES (?,?,?,?,?)").run(id, body.title.trim(), JSON.stringify(body.contentJson), now, now);
-    connection.prepare("INSERT INTO ai_responses (id,document_id,prompt,response_text,source) VALUES (?,?,?,?,?)").run(responseId, id, samplePrompt, sampleResponse, "demo_sample");
     connection.exec("COMMIT");
   } catch (error) { connection.exec("ROLLBACK"); throw error; }
-  return { id, title: body.title.trim(), editorSchemaVersion: 1, version: 0, status: "draft", demoAiResponse: { id: responseId, prompt: samplePrompt, responseText: sampleResponse, source: "demo_sample" } };
+  return { id, title: body.title.trim(), editorSchemaVersion: 1, version: 0, status: "draft" };
 }
 
 export function getDocument(id: string) {
@@ -122,11 +126,10 @@ export function getDocument(id: string) {
   const connection = db();
   const row = connection.prepare("SELECT * FROM documents WHERE id = ?").get(id) as Row | undefined;
   if (!row) throw new ApiError(404, "NOT_FOUND", "Document not found");
-  const ai = connection.prepare("SELECT * FROM ai_responses WHERE document_id = ? AND source = 'demo_sample' LIMIT 1").get(id) as Row | undefined;
   return {
     id, title: row.title, editorSchemaVersion: 1, version: row.version, status: row.status,
+    finalizedAt: row.finalized_at,
     contentJson: JSON.parse(row.content_json as string),
-    demoAiResponse: ai ? { id: ai.id, prompt: ai.prompt, responseText: ai.response_text, source: ai.source } : null,
   };
 }
 
@@ -188,19 +191,92 @@ function assembleEvidence(connection: DatabaseSync, id: string): EvidenceData {
   return evidence;
 }
 
-// Call inside the same transaction that will freeze and sign this document.
-export function readSignableEvidence(connection: DatabaseSync, id: string): EvidenceData {
+function readVerifiedEvidence(connection: DatabaseSync, id: string): EvidenceData {
   const evidence = assembleEvidence(connection, id);
   const result = verifyEvidenceChain(evidence);
   if (!result.valid) throw new ApiError(409, result.code!, result.message!);
   return evidence;
 }
 
+function frozenManifest(row: Row, evidence: EvidenceData): FrozenManifest {
+  if (row.status !== "finalized" || typeof row.finalized_at !== "string" ||
+      row.final_content_hash !== evidence.contentHash ||
+      row.final_event_head_hash !== evidence.eventHeadHash ||
+      row.final_event_count !== evidence.eventCount || row.version !== evidence.finalVersion) {
+    throw new ApiError(409, "FROZEN_EVIDENCE_MISMATCH", "Finalized evidence differs from the frozen manifest");
+  }
+  return {
+    documentId: evidence.documentId,
+    title: row.title as string,
+    finalVersion: evidence.finalVersion,
+    finalizedAt: row.finalized_at,
+    contentHash: evidence.contentHash,
+    eventCount: evidence.eventCount,
+    eventHeadHash: evidence.eventHeadHash,
+    hashFormatVersion: HASH_FORMAT_VERSION,
+  };
+}
+
+export function finalizeDocument(id: string, input: unknown): FrozenManifest {
+  if (!uuid.test(id)) throw new ApiError(400, "INVALID_ID", "Invalid document ID");
+  const body = input as { expectedVersion?: unknown; title?: unknown } | null;
+  if (!body || typeof body !== "object" || !Number.isInteger(body.expectedVersion) || (body.expectedVersion as number) < 0 ||
+      (body.title !== undefined && (typeof body.title !== "string" || !body.title.trim() || body.title.length > 200)) ||
+      Object.keys(body).some((key) => key !== "expectedVersion" && key !== "title")) {
+    throw new ApiError(400, "INVALID_REQUEST", "A non-negative expectedVersion is required");
+  }
+  const connection = db();
+  connection.exec("BEGIN IMMEDIATE");
+  try {
+    const row = connection.prepare("SELECT * FROM documents WHERE id = ?").get(id) as Row | undefined;
+    if (!row) throw new ApiError(404, "NOT_FOUND", "Document not found");
+    if (row.version !== body.expectedVersion) throw new ApiError(409, "STALE_VERSION", "Document version has changed");
+    if (row.status === "finalized") {
+      const manifest = frozenManifest(row, readVerifiedEvidence(connection, id));
+      connection.exec("COMMIT");
+      return manifest;
+    }
+    if (row.status !== "draft") throw new ApiError(409, "INVALID_STATUS", "Document cannot be finalized");
+    const evidence = readVerifiedEvidence(connection, id);
+    const finalizedAt = new Date().toISOString();
+    const finalTitle = typeof body.title === "string" ? body.title.trim() : row.title as string;
+    connection.prepare(`UPDATE documents SET title = ?, status = 'finalized', finalized_at = ?,
+      final_content_hash = ?, final_event_head_hash = ?, final_event_count = ?, updated_at = ? WHERE id = ?`)
+      .run(finalTitle, finalizedAt, evidence.contentHash, evidence.eventHeadHash, evidence.eventCount, finalizedAt, id);
+    const manifest = frozenManifest({ ...row, title: finalTitle, status: "finalized", finalized_at: finalizedAt,
+      final_content_hash: evidence.contentHash, final_event_head_hash: evidence.eventHeadHash,
+      final_event_count: evidence.eventCount }, evidence);
+    connection.exec("COMMIT");
+    return manifest;
+  } catch (error) { connection.exec("ROLLBACK"); throw error; }
+}
+
+export function getEvidencePackage(id: string): EvidencePackage {
+  if (!uuid.test(id)) throw new ApiError(400, "INVALID_ID", "Invalid document ID");
+  const connection = db();
+  connection.exec("BEGIN");
+  try {
+    const row = connection.prepare("SELECT * FROM documents WHERE id = ?").get(id) as Row | undefined;
+    if (!row) throw new ApiError(404, "NOT_FOUND", "Document not found");
+    if (row.status !== "finalized") throw new ApiError(409, "DOCUMENT_NOT_FINALIZED", "Finalize the document before exporting evidence");
+    const evidence = readVerifiedEvidence(connection, id);
+    const result: EvidencePackage = { formatVersion: 1, kind: "proof-flow-evidence",
+      manifest: frozenManifest(row, evidence), contentJson: evidence.contentJson, events: evidence.events };
+    connection.exec("COMMIT");
+    return result;
+  } catch (error) { connection.exec("ROLLBACK"); throw error; }
+}
+
 export function verifyDocumentChain(id: string) {
   if (!uuid.test(id)) throw new ApiError(400, "INVALID_ID", "Invalid document ID");
   try {
-    const evidence = assembleEvidence(db(), id);
-    return verifyEvidenceChain(evidence);
+    const connection = db();
+    const evidence = assembleEvidence(connection, id);
+    const result = verifyEvidenceChain(evidence);
+    if (!result.valid) return result;
+    const row = connection.prepare("SELECT * FROM documents WHERE id = ?").get(id) as Row;
+    if (row.status === "finalized") frozenManifest(row, evidence);
+    return result;
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
       return { valid: false, checkedEvents: 0, headHash: "", code: error.code, message: error.message };
@@ -234,24 +310,20 @@ export function saveEvent(id: string, input: unknown) {
     if (row.status !== "draft") throw new ApiError(409, "DOCUMENT_FINALIZED", "Document is not editable");
     if (row.version !== body.baseVersion) throw new ApiError(409, "STALE_VERSION", "Document version has changed");
     const before = JSON.parse(row.content_json as string) as EditorDocument;
-    if (event.type !== "MANUAL_EDIT") {
+    if (event.type === "PASTE") {
       const position = event.insertPosition!;
       const paragraphIndex = position.path[0];
       if (paragraphIndex < 0 || paragraphIndex >= before.content.length) throw new ApiError(422, "INVALID_POSITION", "Paragraph does not exist");
       const paragraphText = before.content[paragraphIndex].content.map((node) => node.text).join("");
       if (position.offset < 0 || position.offset > paragraphText.length) throw new ApiError(422, "INVALID_POSITION", "Offset exceeds paragraph");
-      if (event.type === "AI_INSERT") {
-        const response = connection.prepare("SELECT response_text FROM ai_responses WHERE id = ? AND document_id = ?").get(event.aiResponseId!, id) as Row | undefined;
-        if (!response || response.response_text !== event.insertedText) throw new ApiError(422, "INVALID_AI_RESPONSE", "AI insertion does not match a recorded response");
-      }
       const prefixLength = before.content.slice(0, paragraphIndex).reduce((sum, paragraph) => sum + paragraph.content.map((node) => node.text).join("").length + 1, 0);
       const start = prefixLength + position.offset;
       const replacedLength = event.replacedLength ?? 0;
-      const expected = replaceRange(before, start, start + replacedLength, event.insertedText!, { sourceOperationId: event.operationId, bold: event.type === "AI_INSERT" });
+      const expected = replaceRange(before, start, start + replacedLength, event.insertedText!, { sourceOperationId: event.operationId });
       if (start + replacedLength > plainText(before).length || canonical(expected) !== canonical(body.contentJson)) throw new ApiError(422, "CONTENT_MISMATCH", "Content does not match the claimed insertion");
     }
     const allowedIds = new Set((connection.prepare("SELECT operation_id FROM events WHERE document_id = ?").all(id) as Row[]).map((entry) => entry.operation_id));
-    if (event.type !== "MANUAL_EDIT") allowedIds.add(event.operationId);
+    if (event.type === "PASTE") allowedIds.add(event.operationId);
     for (const paragraph of body.contentJson.content) for (const node of paragraph.content) {
       if (node.sourceOperationId && !allowedIds.has(node.sourceOperationId)) throw new ApiError(422, "UNKNOWN_SOURCE", "Text references an unknown source operation");
     }

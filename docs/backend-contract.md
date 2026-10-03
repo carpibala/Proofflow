@@ -1,4 +1,6 @@
-# ProofFlow editor and backend contract (draft)
+# ProofFlow editor and backend contract (historical draft)
+
+> **历史设计稿，已不再作为当前实现契约。** 团队已取消 AI、证书、数字签名和公钥计划。冻结与无签名证据包的现行接口见 [当前证据契约](current-evidence-contract.md)。下文仅保留早期讨论记录，请勿据此实现或答辩。
 
 Status (2026-10-04): a local Next.js + SQLite demo implements the custom JSON editor, `documents`/`events` API, FIFO event saving, optimistic versions, idempotency, insertion validation, and a SHA-256 event chain. The Records view lists and filters server-saved events, counts changes and `PASTE` operations, and calls `GET /api/documents/:documentId/verify` for internal chain/content verification. A pure verifier also accepts an optional trusted external head hash. New events use the reproducible v1 evidence format below. Certificate and evidence types plus signing bytes are defined, but Finalize, signature issuance, evidence export, and signature verification are not implemented. The service is unauthenticated and must stay local until access control is added.
 

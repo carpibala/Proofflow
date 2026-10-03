@@ -73,7 +73,7 @@ test("editor saves manual and paste events and restores them after reload", asyn
     assert.equal(json.serverVersion, 2);
     assert.equal(json.events.length, 2);
     assert.equal(json.events[1].insertedText, "pasted ");
-    assert.deepEqual(json.aiResponses, []);
+    assert.equal("aiResponses" in json, false);
 
     mkdirSync(output, { recursive: true });
     await page.screenshot({ path: join(output, "proofflow-desktop.png"), fullPage: true });
@@ -106,7 +106,7 @@ test("Chinese and English UI switching persists without changing document conten
     await page.goto(base);
     await page.getByText("正文服务端版本 0").waitFor();
     assert.equal(await page.locator(".assistant-panel, .editor-toolbar").count(), 0);
-    assert.equal(await page.getByRole("button", { name: "生成证书报告" }).isDisabled(), false);
+    assert.equal(await page.getByRole("button", { name: "查看证据报告" }).isDisabled(), false);
     await page.getByRole("group", { name: "界面语言" }).getByRole("button", { name: "EN" }).click();
     assert.equal(await page.evaluate(() => document.documentElement.lang), "en");
     assert.equal(await page.getByRole("textbox", { name: "Document title" }).getAttribute("placeholder"), "Untitled document");
@@ -347,7 +347,7 @@ test("report counts saved additions, deletions and pastes, then warns on a broke
     await editor.blur();
     await page.getByText("正文服务端版本 3").waitFor();
 
-    await page.getByRole("button", { name: "生成证书报告" }).click();
+    await page.getByRole("button", { name: "查看证据报告" }).click();
     await page.getByRole("heading", { name: "创作证据报告" }).waitFor();
     await page.getByText("内部哈希链一致").waitFor();
     assert.deepEqual(await page.locator(".report-metric strong").allTextContents(), ["2", "1", "1"]);
@@ -368,6 +368,7 @@ test("report counts saved additions, deletions and pastes, then warns on a broke
     await page.getByRole("alert").getByText("警告：哈希链校验失败").waitFor();
     await page.getByText(/BROKEN_EVENT_CHAIN/).waitFor();
     assert.equal(await page.locator(".report-banner-error").count(), 1);
+    assert.equal(await page.getByRole("button", { name: "冻结最终版本" }).isDisabled(), true);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({ path: join(output, "report-broken-mobile.png"), fullPage: true });
@@ -382,4 +383,42 @@ test("report counts saved additions, deletions and pastes, then warns on a broke
     }
     await browser.close();
   }
+});
+
+test("report freezes the latest edit, downloads evidence, and returns to a read-only editor", async () => {
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, acceptDownloads: true });
+    await page.goto(base);
+    await page.getByText("正文服务端版本 0").waitFor();
+    await page.getByRole("textbox", { name: "文档标题" }).fill("最终测试文档");
+    await page.getByRole("textbox", { name: "文档正文" }).fill("Final edit without a pause");
+    await page.getByRole("button", { name: "查看证据报告" }).click();
+    await page.getByRole("heading", { name: "创作证据报告" }).waitFor();
+    await page.getByText("内部哈希链一致").waitFor();
+    assert.deepEqual(await page.locator(".report-metric strong").allTextContents(), ["1", "0", "0"]);
+    await page.getByRole("button", { name: "冻结最终版本" }).click();
+    await page.getByRole("dialog", { name: "确认冻结文档？" }).getByRole("button", { name: "确认冻结" }).click();
+    await page.getByRole("button", { name: "下载证据包" }).waitFor();
+    await page.getByText(/已冻结 ·/).waitFor();
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "下载证据包" }).click();
+    const downloaded = await downloadPromise;
+    const bundle = JSON.parse(readFileSync(await downloaded.path(), "utf8"));
+    assert.equal(bundle.kind, "proof-flow-evidence");
+    assert.equal(bundle.manifest.title, "最终测试文档");
+    assert.equal(bundle.manifest.finalVersion, 1);
+    assert.equal(bundle.events.length, 1);
+    assert.equal(bundle.contentJson.content[0].content[0].text, "Final edit without a pause");
+    mkdirSync(output, { recursive: true });
+    await page.screenshot({ path: join(output, "report-frozen-desktop.png"), fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    const dimensions = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, viewport: innerWidth }));
+    assert.ok(dimensions.scroll <= dimensions.viewport, `Frozen report overflows on mobile: ${JSON.stringify(dimensions)}`);
+    await page.screenshot({ path: join(output, "report-frozen-mobile.png"), fullPage: true });
+    await page.getByRole("link", { name: "返回编辑器" }).click();
+    await page.getByText("最终版本已冻结").waitFor();
+    assert.equal(await page.getByRole("textbox", { name: "文档正文" }).isDisabled(), true);
+    assert.equal(await page.getByRole("textbox", { name: "文档标题" }).isDisabled(), true);
+  } finally { await browser.close(); }
 });
