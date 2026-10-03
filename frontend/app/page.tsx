@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 
 // TypeScript types for JSON data structure
 type DocumentContent = 
-  | { type: 'paragraph'; content: string; }
+  | { type: 'paragraph'; content: string; marks?: Array<{ type: 'bold' | 'italic' | 'underline' }> }
   | { type: 'formatted'; content: string; style: string; };
 
 interface EventLog {
@@ -18,6 +18,7 @@ export default function Home() {
     { type: 'paragraph', content: 'AI in Education: The integration of AI in educational settings can enhance learning experiences.' }
   ]);
   const [baseVersion, setBaseVersion] = useState<number>(0);
+  const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
 
   const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const pastedText = event.clipboardData.getData('text');
@@ -64,7 +65,7 @@ export default function Home() {
         <h2 className="text-lg font-semibold">Creation Timeline</h2>
         <ul>
           {timeline.map((event, index) => (
-            <li key={index}>{`Operation ID: ${event.operationId}, Base Version: ${event.baseVersion}`}</li>
+            <li key={index} onMouseEnter={() => setHoveredEventId(event.operationId)} onMouseLeave={() => setHoveredEventId(null)} className={hoveredEventId === event.operationId ? 'bg-slate-200' : ''}>{`Operation ID: ${event.operationId}, Base Version: ${event.baseVersion}`}</li>
           ))}
         </ul>
       </aside>
