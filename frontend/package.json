@@ -10,7 +10,8 @@
     "lint": "eslint",
     "test": "node --experimental-strip-types --test tests/editor-document.test.mjs tests/change-preview.test.mjs tests/proof-format.test.mjs",
     "test:integration": "node --experimental-strip-types --test tests/api.integration.test.mjs",
-    "test:ui": "node --test tests/ui.smoke.test.mjs"
+    "test:ui": "node --test tests/ui.smoke.test.mjs",
+    "demo:broken-chain": "node --experimental-strip-types scripts/demo-broken-chain.mjs"
   },
   "dependencies": {
     "diff": "^9.0.0",

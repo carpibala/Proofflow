@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { readFileSync, mkdirSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
+import { readFileSync, mkdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { chromium } from "playwright-core";
@@ -24,7 +25,7 @@ async function launchBrowser() {
   throw new Error(`No supported browser found. Install Edge, Chrome, or Playwright Chromium, or set PROOFFLOW_BROWSER_PATH.\n${errors.join("\n")}`);
 }
 
-test("editor saves manual, paste and AI events and restores them after reload", async () => {
+test("editor saves manual and paste events and restores them after reload", async () => {
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
@@ -46,13 +47,13 @@ test("editor saves manual, paste and AI events and restores them after reload", 
     const pasteRow = page.locator(".timeline-item").filter({ hasText: "粘贴" });
     await pasteRow.hover();
     assert.equal(await page.locator(".source-span.is-linked").count(), 1);
-    await page.getByRole("button", { name: "插入到文档" }).click();
-    await page.getByText("正文服务端版本 3").waitFor();
-    assert.match(await editor.inputValue(), /AI can offer personalized practice/);
+    assert.equal(await page.getByRole("button", { name: "插入到文档" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "加粗选中的文字" }).count(), 0);
 
     await page.getByRole("tab", { name: "记录" }).click();
-    await page.getByText("检索到 3 条").waitFor();
-    assert.deepEqual(await page.locator(".record-stats strong").allTextContents(), ["3", "1"]);
+    await page.getByText("检索到 2 条").waitFor();
+    assert.equal(await page.getByRole("option", { name: "AI 插入" }).count(), 0);
+    assert.deepEqual(await page.locator(".record-stats strong").allTextContents(), ["2", "1"]);
     await page.getByRole("combobox", { name: "筛选记录类型" }).selectOption("PASTE");
     assert.equal(await page.locator(".record-entry").count(), 1);
     await page.locator(".record-entry summary").click();
@@ -62,28 +63,28 @@ test("editor saves manual, paste and AI events and restores them after reload", 
     assert.equal(await page.getByText("检索到 0 条").count(), 1);
     await page.getByRole("searchbox", { name: "检索记录" }).fill("");
     await page.getByRole("button", { name: "验证记录" }).click();
-    await page.getByText("内部链一致，已检查 3 条。未签名、未校验外部锚点。").waitFor();
+    await page.getByText("内部链一致，已检查 2 条。未签名、未校验外部锚点。").waitFor();
 
     const downloadPromise = page.waitForEvent("download");
-    await page.getByRole("button", { name: "导出本地 JSON 草稿" }).click();
+    await page.getByRole("button", { name: /导出本地 JSON 草稿/ }).click();
     const download = await downloadPromise;
     const json = JSON.parse(readFileSync(await download.path(), "utf8"));
     assert.equal(json.editorSchemaVersion, 1);
-    assert.equal(json.serverVersion, 3);
-    assert.equal(json.events.length, 3);
+    assert.equal(json.serverVersion, 2);
+    assert.equal(json.events.length, 2);
     assert.equal(json.events[1].insertedText, "pasted ");
-    assert.equal(json.events[2].aiResponseId, json.aiResponses[0].id);
+    assert.deepEqual(json.aiResponses, []);
 
     mkdirSync(output, { recursive: true });
     await page.screenshot({ path: join(output, "proofflow-desktop.png"), fullPage: true });
     await page.reload();
-    await page.getByText("正文服务端版本 3").waitFor();
+    await page.getByText("正文服务端版本 2").waitFor();
     await page.getByText("正文已保存 · 未验证").waitFor();
-    assert.equal(await page.locator(".timeline-item").count(), 3);
+    assert.equal(await page.locator(".timeline-item").count(), 2);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole("tab", { name: "记录" }).click();
-    await page.getByText("检索到 3 条").waitFor();
+    await page.getByText("检索到 2 条").waitFor();
     await page.screenshot({ path: join(output, "proofflow-mobile.png"), fullPage: true });
     const width = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, viewport: innerWidth }));
     assert.ok(width.scroll <= width.viewport, `Mobile layout overflows: ${JSON.stringify(width)}`);
@@ -93,8 +94,58 @@ test("editor saves manual, paste and AI events and restores them after reload", 
       input.value += "中文";
       input.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
     });
-    await page.getByText("正文服务端版本 4").waitFor();
+    await page.getByText("正文服务端版本 3").waitFor();
     assert.match(await editor.inputValue(), /中文$/);
+  } finally { await browser.close(); }
+});
+
+test("Chinese and English UI switching persists without changing document content", async () => {
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    await page.goto(base);
+    await page.getByText("正文服务端版本 0").waitFor();
+    assert.equal(await page.locator(".assistant-panel, .editor-toolbar").count(), 0);
+    assert.equal(await page.getByRole("button", { name: "生成证书报告" }).isDisabled(), false);
+    await page.getByRole("group", { name: "界面语言" }).getByRole("button", { name: "EN" }).click();
+    assert.equal(await page.evaluate(() => document.documentElement.lang), "en");
+    assert.equal(await page.getByRole("textbox", { name: "Document title" }).getAttribute("placeholder"), "Untitled document");
+    const editor = page.getByRole("textbox", { name: "Document body" });
+    await editor.fill("Hello.");
+    await page.getByText("Server version 1").waitFor();
+    assert.equal(await page.locator(".timeline-item").first().locator(".change-caption").textContent(), "Changed text");
+    await page.getByRole("tab", { name: "Records" }).click();
+    await page.getByText("1 records found").waitFor();
+    assert.equal(await page.getByText("Changes").count(), 1);
+    await page.getByRole("combobox", { name: "Filter record type" }).selectOption("MANUAL_EDIT");
+    await page.getByRole("button", { name: "Verify records" }).click();
+    await page.getByText(/Internal chain valid/).waitFor();
+
+    await page.reload();
+    await page.getByRole("group", { name: "Interface language" }).waitFor();
+    await page.getByText("Server version 1").waitFor();
+    assert.equal(await page.getByRole("textbox", { name: "Document body" }).inputValue(), "Hello.");
+    assert.equal(await page.evaluate(() => document.documentElement.lang), "en");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("tab", { name: "Records" }).click();
+    await page.getByText("1 records found").waitFor();
+    mkdirSync(output, { recursive: true });
+    await page.screenshot({ path: join(output, "proofflow-english-mobile.png"), fullPage: true });
+    const width = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, viewport: innerWidth }));
+    assert.ok(width.scroll <= width.viewport, `English mobile layout overflows: ${JSON.stringify(width)}`);
+
+    for (const viewportWidth of [768, 1024]) {
+      await page.setViewportSize({ width: viewportWidth, height: 800 });
+      const dimensions = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, viewport: innerWidth }));
+      assert.ok(dimensions.scroll <= dimensions.viewport, `Layout overflows at ${viewportWidth}px: ${JSON.stringify(dimensions)}`);
+      if (viewportWidth === 1024) await page.screenshot({ path: join(output, "proofflow-english-tablet.png"), fullPage: true });
+    }
+
+    await page.getByRole("group", { name: "Interface language" }).getByRole("button", { name: "中文" }).click();
+    await page.getByRole("textbox", { name: "文档正文" }).waitFor();
+    assert.equal(await page.getByRole("textbox", { name: "文档标题" }).getAttribute("placeholder"), "无标题文档");
+    assert.equal(await page.getByRole("textbox", { name: "文档正文" }).inputValue(), "Hello.");
+    assert.equal(await page.evaluate(() => document.documentElement.lang), "zh-CN");
   } finally { await browser.close(); }
 });
 
@@ -269,4 +320,66 @@ test("a document missing from this server shows a useful error without deleting 
     assert.equal(await page.getByRole("textbox", { name: "文档正文" }).inputValue(), "local work");
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("proofflow-local-draft-v1")).documentId), documentId);
   } finally { await browser.close(); }
+});
+
+test("report counts saved additions, deletions and pastes, then warns on a broken link", async (context) => {
+  const browser = await launchBrowser();
+  let connection;
+  let tamperedId;
+  let originalHash;
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    await page.goto(base);
+    await page.getByText("正文服务端版本 0").waitFor();
+    const editor = page.getByRole("textbox", { name: "文档正文" });
+    await editor.fill("Hello world.");
+    await editor.blur();
+    await page.getByText("正文服务端版本 1").waitFor();
+    await editor.evaluate((input) => {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", " pasted");
+      input.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    });
+    await page.getByText("正文服务端版本 2").waitFor();
+    await editor.fill("Hello . pasted");
+    await editor.blur();
+    await page.getByText("正文服务端版本 3").waitFor();
+
+    await page.getByRole("button", { name: "生成证书报告" }).click();
+    await page.getByRole("heading", { name: "创作证据报告" }).waitFor();
+    await page.getByText("内部哈希链一致").waitFor();
+    assert.deepEqual(await page.locator(".report-metric strong").allTextContents(), ["2", "1", "1"]);
+    assert.equal(await page.locator(".report-activity").count(), 3);
+    mkdirSync(output, { recursive: true });
+    await page.screenshot({ path: join(output, "report-valid-desktop.png"), fullPage: true });
+
+    const id = new URL(page.url()).pathname.split("/").at(-1);
+    const path = join(output, "proofflow.sqlite");
+    if (!existsSync(path)) return context.skip("The target server does not use this local test database");
+    connection = new DatabaseSync(path);
+    const row = connection.prepare("SELECT id, previous_hash FROM events WHERE document_id = ? AND version = 2").get(id);
+    if (!row) return context.skip("The target server uses another database");
+    tamperedId = row.id;
+    originalHash = row.previous_hash;
+    connection.prepare("UPDATE events SET previous_hash = ? WHERE id = ?").run("f".repeat(64), tamperedId);
+    await page.getByRole("button", { name: "重新校验" }).click();
+    await page.getByRole("alert").getByText("警告：哈希链校验失败").waitFor();
+    await page.getByText(/BROKEN_EVENT_CHAIN/).waitFor();
+    assert.equal(await page.locator(".report-banner-error").count(), 1);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: join(output, "report-broken-mobile.png"), fullPage: true });
+    const dimensions = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, viewport: innerWidth }));
+    assert.ok(dimensions.scroll <= dimensions.viewport, `Report overflows on mobile: ${JSON.stringify(dimensions)}`);
+    await page.getByRole("group", { name: "界面语言" }).getByRole("button", { name: "EN" }).click();
+    await page.getByText("Warning: hash chain verification failed").waitFor();
+  } finally {
+    if (connection) {
+      if (tamperedId && originalHash) connection.prepare("UPDATE events SET previous_hash = ? WHERE id = ?").run(originalHash, tamperedId);
+      connection.close();
+    }
+    await browser.close();
+  }
 });

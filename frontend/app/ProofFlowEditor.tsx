@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bold, Download, FileCheck2, FileText, Plus, RotateCw, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ClipboardPaste, Download, FileCheck2, FileText, Keyboard, Languages, RotateCw, Sparkles } from "lucide-react";
 import {
   emptyDocument,
   plainText,
   positionFromOffset,
   reconcileText,
   replaceRange,
-  toggleBold,
   type EditorDocument,
 } from "@/lib/editor-document";
 import { samplePrompt, sampleResponse } from "@/lib/demo-ai";
 import { manualChangeSnippet } from "@/lib/change-preview";
+import { translations, type Language } from "@/lib/i18n";
 import ChangePreview from "./ChangePreview";
 import RecordExplorer from "./RecordExplorer";
 
@@ -37,10 +38,11 @@ type Draft = {
 };
 
 const storageKey = "proofflow-local-draft-v1";
+const languageKey = "proofflow-ui-language";
 const sampleResponseId = "local-demo-response-v1";
 const manualIdleMs = 2000;
 
-const newDraft = (): Draft => ({ title: "无标题文档", document: emptyDocument(), events: [] });
+const newDraft = (): Draft => ({ title: "", document: emptyDocument(), events: [] });
 
 function isDraft(value: unknown): value is Draft {
   if (!value || typeof value !== "object") return false;
@@ -84,27 +86,55 @@ function flushManualEdit(current: Draft): Draft {
   };
 }
 
-function eventLabel(type: EventType): string {
-  if (type === "PASTE") return "粘贴";
-  if (type === "AI_INSERT") return "AI 插入";
-  return "手动编辑";
-}
-
 export default function ProofFlowEditor() {
+  const router = useRouter();
   const [draft, setDraft] = useState<Draft>(newDraft);
+  const [language, setLanguage] = useState<Language>("zh");
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState<"connecting" | "saving" | "saved" | "error">("connecting");
   const [retryToken, setRetryToken] = useState(0);
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
   const [exported, setExported] = useState(false);
+  const [reportRequested, setReportRequested] = useState(false);
   const [sideView, setSideView] = useState<"timeline" | "records">("timeline");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const compositionStart = useRef<EditorDocument | null>(null);
   const creating = useRef(false);
   const saving = useRef(false);
   const draftRef = useRef(draft);
+  const t = translations[language];
+
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      try {
+        const saved = localStorage.getItem(languageKey);
+        if (saved === "zh" || saved === "en") {
+          setLanguage(saved);
+          document.documentElement.lang = saved === "zh" ? "zh-CN" : "en";
+        }
+      } catch {
+        // Language preference is optional when browser storage is unavailable.
+      }
+    });
+    return () => { active = false; };
+  }, []);
+
+  const changeLanguage = (next: Language) => {
+    setLanguage(next);
+    document.documentElement.lang = next === "zh" ? "zh-CN" : "en";
+    try { localStorage.setItem(languageKey, next); } catch { /* Continue without persistence. */ }
+  };
 
   useEffect(() => { draftRef.current = draft; }, [draft]);
+
+  useEffect(() => {
+    if (reportRequested && draft.documentId && !draft.pendingManual &&
+        (draft.savedEventCount ?? 0) === draft.events.length && saveState === "saved") {
+      router.push(`/report/${draft.documentId}`);
+    }
+  }, [reportRequested, draft.documentId, draft.pendingManual, draft.savedEventCount, draft.events.length, saveState, router]);
 
   useEffect(() => {
     let active = true;
@@ -174,7 +204,7 @@ export default function ProofFlowEditor() {
     fetch("/api/documents", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: draft.title || "无标题文档", editorSchemaVersion: 1, contentJson: emptyDocument() }),
+      body: JSON.stringify({ title: draft.title || "Untitled document", editorSchemaVersion: 1, contentJson: emptyDocument() }),
     }).then(async (response) => {
       if (!response.ok) throw new Error(`Create failed: ${response.status}`);
       return response.json() as Promise<{ id: string; version: number; demoAiResponse: DemoResponse }>;
@@ -230,7 +260,7 @@ export default function ProofFlowEditor() {
     });
   };
 
-  const insertText = (type: "PASTE" | "AI_INSERT", insertedText: string) => {
+  const insertPasteText = (insertedText: string) => {
     if (!insertedText) return;
     setSaveState("saving");
     const input = textareaRef.current;
@@ -239,19 +269,15 @@ export default function ProofFlowEditor() {
     setDraft((current) => {
       current = flushManualEdit(current);
       const operationId = crypto.randomUUID();
-      const nextDocument = replaceRange(current.document, start, end, insertedText, {
-        sourceOperationId: operationId,
-        bold: type === "AI_INSERT",
-      });
+      const nextDocument = replaceRange(current.document, start, end, insertedText, { sourceOperationId: operationId });
       const event: DraftEvent = {
         operationId,
-        type,
+        type: "PASTE",
         timestamp: new Date().toISOString(),
         snippet: insertedText.replace(/\s+/g, " ").slice(0, 72),
         insertedText,
         insertPosition: positionFromOffset(current.document, start),
         ...(end > start ? { replacedLength: end - start } : {}),
-        ...(type === "AI_INSERT" ? { aiResponseId: current.demoAiResponse?.id ?? sampleResponseId } : {}),
         contentAfter: nextDocument,
       };
       return { ...current, document: nextDocument, events: [...current.events, event] };
@@ -260,31 +286,6 @@ export default function ProofFlowEditor() {
       input?.focus();
       input?.setSelectionRange(start + insertedText.length, start + insertedText.length);
     });
-  };
-
-  const handleBold = () => {
-    const input = textareaRef.current;
-    if (!input || input.selectionStart === input.selectionEnd) return;
-    setSaveState("saving");
-    setDraft((current) => {
-      current = flushManualEdit(current);
-      const nextDocument = toggleBold(current.document, input.selectionStart, input.selectionEnd);
-      return {
-        ...current,
-        document: nextDocument,
-        events: [
-          ...current.events,
-          {
-            operationId: crypto.randomUUID(),
-            type: "MANUAL_EDIT",
-            timestamp: new Date().toISOString(),
-            snippet: "加粗格式已更改",
-            contentAfter: nextDocument,
-          },
-        ],
-      };
-    });
-    input.focus();
   };
 
   const exportDraft = () => {
@@ -315,33 +316,40 @@ export default function ProofFlowEditor() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand"><span className="brand-mark"><FileCheck2 size={19} strokeWidth={2.4} /></span><span>ProofFlow</span></div>
+        <div className="topbar-primary">
+          <div className="brand"><span className="brand-mark"><FileCheck2 size={20} strokeWidth={2.3} /></span><span>ProofFlow</span></div>
+          <div className="topbar-document" title={draft.title || t.untitled}><FileText size={16} /><span>{draft.title || t.untitled}</span></div>
+        </div>
         <div className="topbar-right">
-          <span className="draft-status"><span className={`status-dot ${saveState}`} /> {saveState === "error" ? "保存失败" : saveState === "saving" ? "保存中" : saveState === "connecting" ? "连接中" : "正文已保存 · 未验证"}</span>
-          {saveState === "error" && <button className="icon-button" onClick={() => { setSaveState("connecting"); setRetryToken((token) => token + 1); }} title="重试保存" aria-label="重试保存"><RotateCw size={17} /></button>}
-          <button className="icon-button export-button" onClick={exportDraft} title="导出本地 JSON 草稿" aria-label="导出本地 JSON 草稿"><Download size={18} /></button>
-          <button className="certificate-button" disabled title="尚未接通后端保存、验证及证书签发"><FileCheck2 size={16} />生成证书</button>
+          <div className="language-switch" role="group" aria-label={t.language}><Languages size={15} aria-hidden="true" /><button type="button" aria-pressed={language === "zh"} onClick={() => changeLanguage("zh")}>{t.chinese}</button><button type="button" aria-pressed={language === "en"} onClick={() => changeLanguage("en")}>{t.english}</button></div>
+          <span className="draft-status" role="status"><span className={`status-dot ${saveState}`} />{saveState === "error" ? t.saveError : saveState === "saving" ? t.saving : saveState === "connecting" ? t.connecting : t.saved}</span>
+          {saveState === "error" && <button className="icon-button" onClick={() => { setSaveState("connecting"); setRetryToken((token) => token + 1); }} title={t.retrySave} aria-label={t.retrySave}><RotateCw size={17} /></button>}
+          <button className="certificate-button" type="button" disabled={!draft.documentId || reportRequested} title={t.certificateHint} onClick={() => {
+            setDraft((current) => flushManualEdit(current));
+            setReportRequested(true);
+          }}><FileCheck2 size={16} />{reportRequested ? t.reportOpening : t.certificate}</button>
+          {reportRequested && saveState === "error" && <button className="icon-button" type="button" onClick={() => setReportRequested(false)} title={t.reportCancel} aria-label={t.reportCancel}>×</button>}
+          <button className="export-button" onClick={exportDraft} title={t.exportDraftHint} aria-label={t.exportDraftHint}><Download size={17} />{t.exportDraft}</button>
         </div>
       </header>
 
       <main className="workspace">
-        <section className="editor-pane" aria-label="文档编辑器">
+        <section className="editor-pane" aria-label={t.editor}>
           <div className="pane-heading">
-            <div className="heading-title"><FileText size={17} /> 文档</div>
-            <span className="quiet-label">JSON editor · schema v1</span>
+            <div className="heading-title"><FileText size={17} />{t.document}</div>
+            <span className="pane-counter">{t.characters(plainText(draft.document).length)}</span>
           </div>
           <div className="editor-scroll">
             <div className="document-sheet">
-              <input className="document-title" aria-label="文档标题" title="标题变更暂仅保存在此浏览器" value={draft.title} onChange={(event) => {
+              <input className="document-title" aria-label={t.title} title={t.titleHint} placeholder={t.untitled} value={draft.title} onChange={(event) => {
                 const title = event.currentTarget.value;
                 setDraft((current) => ({ ...current, title }));
               }} />
-              <div className="editor-toolbar"><button className="tool-button" title="加粗选中的文字" aria-label="加粗选中的文字" onMouseDown={(event) => event.preventDefault()} onClick={handleBold}><Bold size={17} /></button><span className="toolbar-divider" /><span className="toolbar-note">选中文字后可加粗</span></div>
               <textarea
                 ref={textareaRef}
                 className="document-input"
-                aria-label="文档正文"
-                placeholder="开始写作..."
+                aria-label={t.body}
+                placeholder={t.bodyPlaceholder}
                 spellCheck={false}
                 value={plainText(draft.document)}
                 onChange={(event) => {
@@ -366,14 +374,14 @@ export default function ProofFlowEditor() {
                 onBlur={() => setDraft((current) => flushManualEdit(current))}
                 onPaste={(event) => {
                   event.preventDefault();
-                  insertText("PASTE", event.clipboardData.getData("text/plain"));
+                  insertPasteText(event.clipboardData.getData("text/plain"));
                 }}
               />
-              <div className="document-footer"><span>{plainText(draft.document).length} 字符</span><span>{draft.documentId ? `正文服务端版本 ${draft.serverVersion ?? 0}` : "等待建立文档"}</span></div>
+              <div className="document-footer"><span>{t.characters(plainText(draft.document).length)}</span><span>{draft.documentId ? t.serverVersion(draft.serverVersion ?? 0) : t.waitingDocument}</span></div>
             </div>
 
-            <section className="source-section" aria-label="来源标记预览">
-              <div className="section-heading"><h2>来源标记</h2><span>悬停查看对应事件</span></div>
+            <section className="source-section" aria-label={t.source}>
+              <div className="section-heading"><h2><FileText size={16} />{t.source}</h2></div>
               <div className="source-body">
                 {plainText(draft.document) ? draft.document.content.map((paragraph, paragraphIndex) => (
                   <p key={paragraphIndex}>{paragraph.content.length ? paragraph.content.map((node, index) => (
@@ -382,25 +390,19 @@ export default function ProofFlowEditor() {
                       className={`source-span ${node.sourceOperationId ? "has-source" : ""} ${hoveredEventId === node.sourceOperationId ? "is-linked" : ""}`}
                       onMouseEnter={() => node.sourceOperationId && setHoveredEventId(node.sourceOperationId)}
                       onMouseLeave={() => setHoveredEventId(null)}
-                      title={node.sourceOperationId ? `操作 ${node.sourceOperationId}` : undefined}
+                      title={node.sourceOperationId ? t.operation(node.sourceOperationId) : undefined}
                     >{node.marks?.some((mark) => mark.type === "bold") ? <strong>{node.text}</strong> : node.text}</span>
                   )) : <br />}</p>
-                )) : <span className="source-empty">正文内容会显示在这里</span>}
+                )) : <span className="source-empty">{t.sourceEmpty}</span>}
               </div>
             </section>
           </div>
         </section>
 
-        <aside className="side-pane" aria-label="AI 助手和创建时间线">
-          <div className="assistant-panel">
-            <div className="section-heading"><h2><Sparkles size={17} /> AI 助手</h2><span className="demo-tag">本地示例</span></div>
-            <div className="prompt-line">{draft.demoAiResponse?.prompt ?? samplePrompt}</div>
-            <p className="response-copy">{draft.demoAiResponse?.responseText ?? sampleResponse}</p>
-            <button className="insert-button" onClick={() => insertText("AI_INSERT", draft.demoAiResponse?.responseText ?? sampleResponse)}><Plus size={17} />插入到文档</button>
-          </div>
+        <aside className="side-pane" aria-label={t.sidePane}>
           <div className="timeline-panel">
-            <div className="section-heading"><div className="side-tabs" role="tablist" aria-label="记录视图"><button type="button" role="tab" aria-selected={sideView === "timeline"} onClick={() => setSideView("timeline")}>时间线</button><button type="button" role="tab" aria-selected={sideView === "records"} onClick={() => setSideView("records")}>记录</button></div>{sideView === "timeline" && <span>{draft.events.length} 条本地事件</span>}</div>
-            {sideView === "timeline" ? <div className="timeline-list" role="tabpanel" aria-label="创建时间线">
+            <div className="side-heading"><div className="side-tabs" role="tablist" aria-label={t.recordViews}><button type="button" role="tab" aria-selected={sideView === "timeline"} onClick={() => setSideView("timeline")}>{t.timeline}</button><button type="button" role="tab" aria-selected={sideView === "records"} onClick={() => setSideView("records")}>{t.records}</button></div>{sideView === "timeline" && <span className="event-count" title={t.localEvents(draft.events.length)}>{draft.events.length}</span>}</div>
+            {sideView === "timeline" ? <div className="timeline-list" role="tabpanel" aria-label={t.timeline}>
               {draft.events.length ? [...draft.events].reverse().map((event, reverseIndex) => (
                 <div
                   className={`timeline-item ${hoveredEventId === event.operationId ? "is-linked" : ""}`}
@@ -408,16 +410,18 @@ export default function ProofFlowEditor() {
                   onMouseEnter={() => setHoveredEventId(event.operationId)}
                   onMouseLeave={() => setHoveredEventId(null)}
                 >
+                  <time className="timeline-time" dateTime={event.timestamp}>{new Date(event.timestamp).toLocaleTimeString(language === "zh" ? "zh-CN" : "en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3, hour12: false })}</time>
                   <span className={`timeline-node ${event.type.toLowerCase()}`} />
-                  <div className="timeline-content"><div className="timeline-meta"><strong>{eventLabel(event.type)}</strong><time dateTime={event.timestamp}>{new Date(event.timestamp).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3 })}</time></div>{event.type === "AI_INSERT" ? <p>{event.snippet}</p> : <ChangePreview type={event.type} before={draft.events[draft.events.length - reverseIndex - 2]?.contentAfter ?? emptyDocument()} after={event.contentAfter} fallback={event.snippet} insertedText={event.insertedText} insertPosition={event.insertPosition} replacedLength={event.replacedLength} />}<code>{event.operationId.slice(0, 8)}</code></div>
+                  <span className={`timeline-icon ${event.type.toLowerCase()}`}>{event.type === "PASTE" ? <ClipboardPaste size={17} /> : event.type === "AI_INSERT" ? <Sparkles size={17} /> : <Keyboard size={17} />}</span>
+                  <div className="timeline-content"><strong>{t.events[event.type]}</strong>{event.type === "AI_INSERT" ? <p>{event.snippet}</p> : <ChangePreview language={language} type={event.type} before={draft.events[draft.events.length - reverseIndex - 2]?.contentAfter ?? emptyDocument()} after={event.contentAfter} fallback={event.snippet} insertedText={event.insertedText} insertPosition={event.insertPosition} replacedLength={event.replacedLength} />}<code>{event.operationId.slice(0, 8)}</code></div>
                 </div>
-              )) : <div className="timeline-empty">开始编辑后，这里会显示操作记录。</div>}
-            </div> : <RecordExplorer documentId={draft.documentId} savedEventCount={draft.savedEventCount ?? 0} pendingCount={Math.max(0, draft.events.length - (draft.savedEventCount ?? 0)) + (draft.pendingManual ? 1 : 0)} onHover={setHoveredEventId} />}
+              )) : <div className="timeline-empty">{t.timelineEmpty}</div>}
+            </div> : <RecordExplorer language={language} documentId={draft.documentId} savedEventCount={draft.savedEventCount ?? 0} pendingCount={Math.max(0, draft.events.length - (draft.savedEventCount ?? 0)) + (draft.pendingManual ? 1 : 0)} onHover={setHoveredEventId} />}
           </div>
-          <div className="side-footer">本机 Demo 使用 SQLite；尚无用户鉴权、签名与证书签发。</div>
+          <div className="side-footer">{t.localDemo}</div>
         </aside>
       </main>
-      {exported && <div className="toast" role="status">JSON 草稿已导出</div>}
+      {exported && <div className="toast" role="status">{t.exported}</div>}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { RotateCw, Search, ShieldCheck } from "lucide-react";
 import { emptyDocument, plainText, type EditorDocument } from "@/lib/editor-document";
+import { translations, type Language } from "@/lib/i18n";
 import ChangePreview from "./ChangePreview";
 
 type SavedEvent = {
@@ -30,18 +31,25 @@ type Verification = {
   message?: string;
 };
 
-const labels = { MANUAL_EDIT: "手动编辑", PASTE: "粘贴", AI_INSERT: "AI 插入" };
-const formatDelta = (delta: number | null | undefined) => delta == null ? "首条记录无基线" : `${delta > 0 ? "+" : ""}${delta}`;
+type LoadError = { kind: "missing" } | { kind: "http"; status: number } | { kind: "offline" };
 
-export default function RecordExplorer({ documentId, savedEventCount, pendingCount, onHover }: {
+class RecordLoadError extends Error {
+  constructor(readonly kind: "missing" | "http", readonly status = 0) { super(kind); }
+}
+
+const formatDelta = (delta: number | null | undefined, firstLabel: string) => delta == null ? firstLabel : `${delta > 0 ? "+" : ""}${delta}`;
+
+export default function RecordExplorer({ documentId, savedEventCount, pendingCount, onHover, language }: {
   documentId?: string;
   savedEventCount: number;
   pendingCount: number;
   onHover: (operationId: string | null) => void;
+  language: Language;
 }) {
+  const t = translations[language];
   const [records, setRecords] = useState<SavedEvent[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<LoadError | null>(null);
   const [retry, setRetry] = useState(0);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
@@ -54,12 +62,12 @@ export default function RecordExplorer({ documentId, savedEventCount, pendingCou
     queueMicrotask(() => { if (!controller.signal.aborted) { setLoading(true); setLoadError(null); setVerification(null); } });
     fetch(`/api/documents/${documentId}/events`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
-        if (response.status === 404) throw new Error("当前服务未找到这份文档。草稿仍在浏览器中，请检查服务端口或工作区。");
-        if (!response.ok) throw new Error(`记录读取失败（HTTP ${response.status}），请重试。`);
+        if (response.status === 404) throw new RecordLoadError("missing");
+        if (!response.ok) throw new RecordLoadError("http", response.status);
         return response.json() as Promise<{ events: SavedEvent[] }>;
       })
       .then((data) => { if (!controller.signal.aborted) setRecords(data.events); })
-      .catch((error: unknown) => { if (!controller.signal.aborted) { setRecords([]); setLoadError(error instanceof Error ? error.message : "无法连接当前服务，请确认服务仍在运行。"); } })
+      .catch((error: unknown) => { if (!controller.signal.aborted) { setRecords([]); setLoadError(error instanceof RecordLoadError ? error.kind === "http" ? { kind: "http", status: error.status } : { kind: "missing" } : { kind: "offline" }); } })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [documentId, savedEventCount, retry]);
@@ -68,10 +76,10 @@ export default function RecordExplorer({ documentId, savedEventCount, pendingCou
     const needle = query.trim().toLocaleLowerCase();
     return records.filter((record) =>
       (typeFilter === "ALL" || record.type === typeFilter) &&
-      (!needle || [record.version, labels[record.type], record.snippet, record.operationId,
+      (!needle || [record.version, t.events[record.type], record.snippet, record.operationId,
         record.insertedText ?? "", record.aiResponseId ?? ""].some((value) => String(value).toLocaleLowerCase().includes(needle))),
     ).reverse();
-  }, [records, query, typeFilter]);
+  }, [records, query, typeFilter, t]);
 
   const textChanges = useMemo(() => {
     const lengths = records.map((record) => plainText(record.contentAfter).length);
@@ -94,56 +102,58 @@ export default function RecordExplorer({ documentId, savedEventCount, pendingCou
       if (!response.ok) throw new Error(`Verify failed: ${response.status}`);
       setVerification(await response.json() as Verification);
     } catch {
-      setVerification({ valid: false, checkedEvents: 0, headHash: "", code: "REQUEST_FAILED", message: "验证请求失败，请重试" });
+      setVerification({ valid: false, checkedEvents: 0, headHash: "", code: "REQUEST_FAILED" });
     } finally {
       setVerifying(false);
     }
   };
 
   const pasteCount = records.filter((record) => record.type === "PASTE").length;
+  const loadErrorMessage = loadError?.kind === "missing" ? t.record.missing :
+    loadError?.kind === "http" ? t.record.readFailed(loadError.status) : t.record.offline;
   return (
-    <div className="record-explorer" role="tabpanel" aria-label="已保存记录">
-      <div className="record-stats" aria-label="已保存记录统计">
-        <div><strong>{records.length}</strong><span>更改次数</span></div>
-        <div><strong>{pasteCount}</strong><span>粘贴次数</span></div>
+    <div className="record-explorer" role="tabpanel" aria-label={t.record.saved}>
+      <div className="record-stats" aria-label={t.record.stats}>
+        <div><strong>{records.length}</strong><span>{t.record.changes}</span></div>
+        <div><strong>{pasteCount}</strong><span>{t.record.pastes}</span></div>
       </div>
       <div className="record-controls">
-        <label className="record-search"><Search size={15} /><input type="search" aria-label="检索记录" placeholder="搜索摘要、操作 ID" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
-        <select aria-label="筛选记录类型" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
-          <option value="ALL">全部类型</option>
-          <option value="MANUAL_EDIT">手动编辑</option>
-          <option value="PASTE">粘贴</option>
-          <option value="AI_INSERT">AI 插入</option>
+        <label className="record-search"><Search size={15} /><input type="search" aria-label={t.record.search} placeholder={t.record.searchPlaceholder} value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+        <select aria-label={t.record.filter} value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+          <option value="ALL">{t.record.allTypes}</option>
+          <option value="MANUAL_EDIT">{t.events.MANUAL_EDIT}</option>
+          <option value="PASTE">{t.events.PASTE}</option>
+          {records.some((record) => record.type === "AI_INSERT") && <option value="AI_INSERT">{t.events.AI_INSERT}</option>}
         </select>
       </div>
-      <div className="record-list-heading"><span>检索到 {filtered.length} 条</span>{loadError && <button type="button" onClick={() => setRetry((value) => value + 1)} title="重新加载记录"><RotateCw size={15} />重试</button>}</div>
+      <div className="record-list-heading"><span>{t.record.matches(filtered.length)}</span>{loadError && <button type="button" onClick={() => setRetry((value) => value + 1)} title={t.record.retry}><RotateCw size={15} />{t.record.retry}</button>}</div>
       <div className="record-list">
-        {loadError ? <p className="record-empty" role="alert">{loadError}</p> : loading && records.length === 0 ? <p className="record-empty">正在读取记录…</p> :
-          filtered.length === 0 ? <p className="record-empty">{records.length ? "没有符合条件的记录。" : "尚无已保存记录。"}</p> :
+        {loadError ? <p className="record-empty" role="alert">{loadErrorMessage}</p> : loading && records.length === 0 ? <p className="record-empty">{t.record.loading}</p> :
+          filtered.length === 0 ? <p className="record-empty">{records.length ? t.record.noMatches : t.record.noRecords}</p> :
           filtered.map((record) => (
             <details className="record-entry" key={record.id} onMouseEnter={() => onHover(record.operationId)} onMouseLeave={() => onHover(null)}>
-              <summary><span className={`record-type ${record.type.toLowerCase()}`}>{labels[record.type]}</span><span className="record-version">v{record.version}</span><time dateTime={record.receivedAt}>{new Date(record.receivedAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time></summary>
-              {record.type === "AI_INSERT" ? <p className="record-snippet">{record.snippet || record.insertedText?.slice(0, 80) || "正文已修改"}</p> : <ChangePreview type={record.type} before={previousContent.get(record.id) ?? emptyDocument()} after={record.contentAfter} fallback={record.snippet || "正文已修改"} insertedText={record.insertedText} insertPosition={record.insertPosition} replacedLength={record.replacedLength} />}
+              <summary><span className={`record-type ${record.type.toLowerCase()}`}>{t.events[record.type]}</span><span className="record-version">v{record.version}</span><time dateTime={record.receivedAt}>{new Date(record.receivedAt).toLocaleString(language === "zh" ? "zh-CN" : "en-US", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time></summary>
+              {record.type === "AI_INSERT" ? <p className="record-snippet">{record.snippet || record.insertedText?.slice(0, 80) || t.record.edited}</p> : <ChangePreview language={language} type={record.type} before={previousContent.get(record.id) ?? emptyDocument()} after={record.contentAfter} fallback={record.snippet || t.record.edited} insertedText={record.insertedText} insertPosition={record.insertPosition} replacedLength={record.replacedLength} />}
               <dl className="record-attributes">
-                <dt>操作 ID</dt><dd><code>{record.operationId}</code></dd>
-                <dt>记录时间</dt><dd>{record.timestamp ?? "未提供"}</dd>
-                <dt>服务端时间</dt><dd>{record.receivedAt}</dd>
-                <dt>正文字符</dt><dd>{textChanges.get(record.id)?.currentLength}</dd>
-                <dt>字符变化</dt><dd>{formatDelta(textChanges.get(record.id)?.delta)}</dd>
-                {record.insertedText !== null && <><dt>插入字符</dt><dd>{record.insertedText.length}</dd><dt>插入内容</dt><dd className="record-full-text">{record.insertedText}</dd></>}
-                {record.insertPosition && <><dt>插入位置</dt><dd>段落 {record.insertPosition.path[0] + 1}，偏移 {record.insertPosition.offset}</dd></>}
-                {record.replacedLength !== null && <><dt>替换字符</dt><dd>{record.replacedLength}</dd></>}
-                {record.aiResponseId && <><dt>AI 回答 ID</dt><dd><code>{record.aiResponseId}</code></dd></>}
-                <dt>前序哈希</dt><dd><code>{record.previousHash}</code></dd>
-                <dt>事件哈希</dt><dd><code>{record.eventHash}</code></dd>
+                <dt>{t.record.operationId}</dt><dd><code>{record.operationId}</code></dd>
+                <dt>{t.record.recordedAt}</dt><dd>{record.timestamp ?? t.record.unknownTime}</dd>
+                <dt>{t.record.serverTime}</dt><dd>{record.receivedAt}</dd>
+                <dt>{t.record.bodyCharacters}</dt><dd>{textChanges.get(record.id)?.currentLength}</dd>
+                <dt>{t.record.characterDelta}</dt><dd>{formatDelta(textChanges.get(record.id)?.delta, t.record.firstDelta)}</dd>
+                {record.insertedText !== null && <><dt>{t.record.insertedCharacters}</dt><dd>{record.insertedText.length}</dd><dt>{t.record.insertedContent}</dt><dd className="record-full-text">{record.insertedText}</dd></>}
+                {record.insertPosition && <><dt>{t.record.insertPosition}</dt><dd>{t.record.position(record.insertPosition.path[0] + 1, record.insertPosition.offset)}</dd></>}
+                {record.replacedLength !== null && <><dt>{t.record.replacedCharacters}</dt><dd>{record.replacedLength}</dd></>}
+                {record.aiResponseId && <><dt>{t.record.aiResponseId}</dt><dd><code>{record.aiResponseId}</code></dd></>}
+                <dt>{t.record.previousHash}</dt><dd><code>{record.previousHash}</code></dd>
+                <dt>{t.record.eventHash}</dt><dd><code>{record.eventHash}</code></dd>
               </dl>
             </details>
           ))}
       </div>
       <div className="record-verification">
-        <button type="button" onClick={verify} disabled={!documentId || loading || Boolean(loadError) || verifying || pendingCount > 0 || records.length === 0} title="检查服务端事件哈希链与最终正文；不包含数字签名或外部锚点"><ShieldCheck size={16} />{verifying ? "验证中" : "验证记录"}</button>
-        {pendingCount > 0 && <p>有 {pendingCount} 条待保存操作，保存完成后可验证。</p>}
-        {verification && pendingCount === 0 && <p className={verification.valid ? "verification-ok" : "verification-error"} role="status">{verification.valid ? `内部链一致，已检查 ${verification.checkedEvents} 条。未签名、未校验外部锚点。` : `验证未通过：${verification.message ?? verification.code}`}</p>}
+        <button type="button" onClick={verify} disabled={!documentId || loading || Boolean(loadError) || verifying || pendingCount > 0 || records.length === 0} title={t.record.verifyHint}><ShieldCheck size={16} />{verifying ? t.record.verifying : t.record.verify}</button>
+        {pendingCount > 0 && <p>{t.record.pending(pendingCount)}</p>}
+        {verification && pendingCount === 0 && <p className={verification.valid ? "verification-ok" : "verification-error"} role="status">{verification.valid ? t.record.verified(verification.checkedEvents) : t.record.invalid(verification.code === "REQUEST_FAILED" ? t.record.requestFailed : verification.message ?? verification.code ?? t.record.requestFailed)}</p>}
       </div>
     </div>
   );

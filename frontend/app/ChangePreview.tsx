@@ -3,8 +3,9 @@
 import { useMemo } from "react";
 import { plainText, type EditorDocument } from "@/lib/editor-document";
 import { manualChangeHunks, pasteChangeHunks } from "@/lib/change-preview";
+import { translations, type Language } from "@/lib/i18n";
 
-export default function ChangePreview({ before, after, fallback, type, insertedText, insertPosition, replacedLength }: {
+export default function ChangePreview({ before, after, fallback, type, insertedText, insertPosition, replacedLength, language }: {
   before: EditorDocument;
   after: EditorDocument;
   fallback: string;
@@ -12,13 +13,14 @@ export default function ChangePreview({ before, after, fallback, type, insertedT
   insertedText?: string | null;
   insertPosition?: { path: number[]; offset: number } | null;
   replacedLength?: number | null;
+  language: Language;
 }) {
   const hunks = useMemo(() => type === "PASTE"
     ? pasteChangeHunks(plainText(before), plainText(after), insertedText, insertPosition, replacedLength ?? 0)
     : manualChangeHunks(plainText(before), plainText(after)), [before, after, type, insertedText, insertPosition, replacedLength]);
-  const caption = type === "PASTE" ? "粘贴部分" : "修改部分";
+  const caption = type === "PASTE" ? translations[language].pastedPart : translations[language].changedPart;
   return (
-    <div className="manual-change-preview" aria-label={caption}>
+    <div className="change-preview" aria-label={caption}>
       <span className="change-caption">{caption}</span>
       {hunks.length ? hunks.map((hunk, index) => (
         <p className="change-hunk" key={index}>
