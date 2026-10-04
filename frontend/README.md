@@ -6,12 +6,15 @@ This is a working first slice of the custom JSON editor and documents/events bac
 
 Use Node.js 24 or newer. The API uses the built-in `node:sqlite` module, which is still marked experimental by Node. From this directory:
 
-```bash
+```powershell
 npm ci
+$env:PROOFFLOW_ORIGIN = "http://127.0.0.1:3001"
 npm run dev -- -p 3001 -H 127.0.0.1
 ```
 
-Open `http://127.0.0.1:3001/`. Bind to the loopback host as shown because this demo has no authentication. The SQLite database is created at `frontend/data/proofflow.sqlite` and ignored by Git. Keep that directory if you want demo data to survive restarts. A browser draft belongs to its exact origin and document ID; switching ports or worktrees does not transfer the server database.
+Set `PROOFFLOW_ORIGIN` before starting the server: it must match the exact origin you browse to (with port, no trailing slash), and the server uses it to validate the origin of write requests. On macOS/Linux set it with `export PROOFFLOW_ORIGIN="http://127.0.0.1:3001"`. On Windows type `npm`, not `npm.cmd`.
+
+Open `http://127.0.0.1:3001/`. Bind to the loopback host as shown; this remains a local demo, and public hosting additionally requires HTTPS, deployment-level rate limits and backups. The SQLite database is created at `frontend/data/proofflow.sqlite` and ignored by Git. Keep that directory if you want demo data to survive restarts. A browser draft belongs to its exact origin and document ID; switching ports or worktrees does not transfer the server database.
 
 ## API
 

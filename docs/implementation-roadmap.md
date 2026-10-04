@@ -150,6 +150,7 @@ Content-Type: application/json
 npm test
 npm run lint
 npm run build
+$env:PROOFFLOW_ORIGIN = "http://127.0.0.1:3001"
 npm run dev -- -p 3001 -H 127.0.0.1
 ```
 

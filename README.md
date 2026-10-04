@@ -17,13 +17,16 @@ ProofFlow 是一个本地演示项目：在 JSON 编辑器中记录文档编辑�
 
 需要 Node.js 24 或更新版本。在仓库根目录执行：
 
-```bash
+```powershell
 cd frontend
 npm ci
+$env:PROOFFLOW_ORIGIN = "http://127.0.0.1:3001"
 npm run dev -- -p 3001 -H 127.0.0.1
 ```
 
-打开 <http://127.0.0.1:3001/>。如需换端口，浏览器地址也要一起换；不同端口或不同工作区的浏览器草稿和 SQLite 数据库不会自动同步。服务器数据位于 `frontend/data/proofflow.sqlite`，该目录不提交到 Git。不要清除浏览器网站数据来处理保存失败，以免丢失待提交草稿。
+本机运行时**必须先设置 `PROOFFLOW_ORIGIN`**，其值要与浏览器实际访问的来源一致（含端口，不带尾部斜杠），服务端用它校验写请求的来源。macOS/Linux 用 `export PROOFFLOW_ORIGIN="http://127.0.0.1:3001"`；Windows 上命令中的 `npm` 不要写成 `npm.cmd`。
+
+打开 <http://127.0.0.1:3001/>。如需换端口，浏览器地址和 `PROOFFLOW_ORIGIN` 都要一起换；不同端口或不同工作区的浏览器草稿和 SQLite 数据库不会自动同步。服务器数据位于 `frontend/data/proofflow.sqlite`，该目录不提交到 Git。不要清除浏览器网站数据来处理保存失败，以免丢失待提交草稿。
 
 ## 验证与文档
 

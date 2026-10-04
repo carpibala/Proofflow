@@ -9,10 +9,13 @@
 ```powershell
 cd frontend
 npm ci
+$env:PROOFFLOW_ORIGIN = "http://127.0.0.1:3001"
 npm run dev -- -p 3001 -H 127.0.0.1
 ```
 
-浏览器打开 http://127.0.0.1:3001/，先注册，再使用编辑器。按 Ctrl+C 停止；重新执行最后一条命令即可启动。重启不会删除账号或已保存文档。
+`PROOFFLOW_ORIGIN` 本机运行时必须先设置，其值要与浏览器地址栏中的来源一致（含端口，不带尾部斜杠）。服务端用它校验写请求来源，来源不匹配会返回 403。Windows 上使用 `npm`，不要写成 `npm.cmd`。
+
+浏览器打开 http://127.0.0.1:3001/，先注册，再使用编辑器。按 Ctrl+C 停止；重新执行最后两条命令即可启动（`$env:` 只对当前终端会话有效）。重启不会删除账号或已保存文档。
 
 ## 后端数据
 
@@ -45,7 +48,7 @@ node scripts/assign-legacy-documents.mjs zack --all
 ## 配置
 
 - `PROOFFLOW_DATA_DIR`：可选，SQLite 所在目录；迁移和测试时须与服务保持一致。
-- `PROOFFLOW_ORIGIN`：可选，浏览器实际访问来源，例如 `https://proof.example.com`，不带尾部斜杠。反向代理部署须配置准确。
+- `PROOFFLOW_ORIGIN`：服务端信任的浏览器来源，用于写请求的 Origin 校验。本机运行时必填，须与浏览器地址栏来源完全一致（含端口，不带尾部斜杠）；反向代理或公网部署改成实际域名，例如 `https://proof.example.com`。来源不匹配的写请求返回 403。
 - `PROOFFLOW_COOKIE_SECURE`：生产模式默认开启；开发模式默认关闭。公网 HTTPS 部署设为 `true`。仅在本机 HTTP 测试 `npm start` 时可设为 `false`。
 
 认证接口仅接受 JSON 写请求，并验证浏览器 Origin / Sec-Fetch-Site。认证尝试按用户名及全局窗口做 SQLite 持久限流；这适用于小规模演示，公网服务还需部署层限流与 HTTPS。全局超过 200 次/15 分钟会暂时阻止认证，单用户名超过 10 次/15 分钟也会阻止；密码正确的登录会清除该用户名失败计数。
